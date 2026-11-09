@@ -1,0 +1,8 @@
+# 보안: 사내 테스트케이스 엑셀 파일 및 임시 파일 제외
+*.xlsx
+~$*.xlsx
+*.csv
+
+# OS 생성 파일 제외
+.DS_Store
+Thumbs.db
