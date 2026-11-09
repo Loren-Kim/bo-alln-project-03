@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QA 제휴 연동 상품 조회기 (100일 이내 재고 有)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    body { font-family: 'Pretendard', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 py-8">
+    <!-- Header -->
+    <header class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between pb-6 border-b border-slate-200 gap-4">
+      <div>
+        <div class="flex items-center gap-3">
+          <span class="px-2.5 py-1 text-xs font-bold bg-amber-500/10 text-amber-600 rounded-md border border-amber-200">QA Environment</span>
+          <h1 class="text-2xl font-bold text-slate-900">제휴 연동 상품 조회 자동화</h1>
+        </div>
+        <p class="text-sm text-slate-500 mt-1">100일 이내 재고 있는 연동 상품을 실시간 조회하며, 상품번호와 영업점/사이트번호를 자동 분리합니다.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btnFetchAll" onclick="fetchAllChannels()" class="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm transition-all shadow-sm shadow-blue-500/20 active:scale-95">
+          <i class="fa-solid fa-cloud-arrow-down"></i>
+          <span>전체 채널 일괄 조회 (33개)</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Grid: 좌측 컨트롤 / 우측 결과 -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- Left Panel: 채널 선택 및 필터 (4 cols) -->
+      <div class="lg:col-span-4 space-y-4">
+        <!-- 제휴사 탭 -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
+          <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <i class="fa-solid fa-store text-blue-500"></i> 채널명(제휴사) 선택
+          </h2>
+          <div class="grid grid-cols-3 gap-2" id="partnerTabs">
+            <!-- JS로 동적 생성 -->
+          </div>
+        </div>
+
+        <!-- 선택된 제휴사의 하위 채널 목록 -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-list-check text-blue-500"></i>
+              <span id="currentPartnerTitle">서비스명 목록</span>
+            </h2>
+            <button onclick="fetchCurrentPartnerChannels()" class="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
+              <i class="fa-solid fa-bolt"></i> 이 제휴사만 조회
+            </button>
+          </div>
+          <div id="channelList" class="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+            <!-- JS로 동적 생성 -->
+          </div>
+        </div>
+
+        <!-- 직접 CHNL_ID 입력 조회 -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
+          <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <i class="fa-solid fa-magnifying-glass text-blue-500"></i> 채널ID 직접 입력 조회
+          </h2>
+          <div class="flex gap-2">
+            <input type="text" id="customChnlId" placeholder="예: 0000018820" class="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono">
+            <button onclick="fetchCustomChannel()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm rounded-lg font-medium transition-all">
+              조회
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Panel: 조회 결과 및 추출 (8 cols) -->
+      <div class="lg:col-span-8 space-y-4">
+        <!-- 상태 요약 바 -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm flex flex-wrap items-center justify-between gap-4">
+          <div class="flex items-center gap-4 text-sm flex-wrap">
+            <div>
+              <span class="text-[11px] text-slate-400 block font-medium">현재 조회 기준</span>
+              <span id="currentScopeBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                <i class="fa-solid fa-crosshairs text-blue-500"></i>
+                <span id="currentScopeText">조회 대기 (좌측 또는 상단 버튼 클릭)</span>
+              </span>
+            </div>
+            <div class="h-6 w-px bg-slate-200 hidden sm:block"></div>
+            <div>
+              <span class="text-[11px] text-slate-400 block font-medium">조회된 채널</span>
+              <span id="statChannelCount" class="font-bold text-slate-900 text-sm">0개</span>
+            </div>
+            <div class="h-6 w-px bg-slate-200 hidden sm:block"></div>
+            <div>
+              <span class="text-[11px] text-slate-400 block font-medium">조회된 상품 수</span>
+              <span id="statItemCount" class="font-bold text-blue-600 text-sm">0건</span>
+            </div>
+            <div id="loadingIndicator" class="hidden items-center gap-2 text-blue-600 font-medium">
+              <i class="fa-solid fa-circle-notch fa-spin"></i>
+              <span id="loadingText" class="text-xs">조회 중...</span>
+            </div>
+          </div>
+
+          <!-- 복사 및 내보내기 액션 -->
+          <div class="flex items-center gap-2">
+            <button onclick="copyItemIds('newline')" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all">
+              <i class="fa-regular fa-copy"></i>
+              <span>상품번호 복사 (개행)</span>
+            </button>
+            <button onclick="copyItemIds('comma')" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all">
+              <i class="fa-regular fa-copy"></i>
+              <span>상품번호 복사 (콤마)</span>
+            </button>
+            <button onclick="exportCSV()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-all shadow-sm shadow-emerald-500/20">
+              <i class="fa-solid fa-file-excel"></i>
+              <span>CSV 다운로드 (지정양식)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 검색 필터 -->
+        <div class="flex items-center gap-3">
+          <div class="relative flex-1">
+            <i class="fa-solid fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+            <input type="text" id="tableFilter" oninput="filterResultsTable()" placeholder="결과 필터링 (채널명, 서비스명, 상품번호, 영업점명 검색)" class="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <label class="flex items-center gap-2 text-xs text-slate-600 select-none cursor-pointer">
+            <input type="checkbox" id="filterHasItemsOnly" onchange="filterResultsTable()" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+            <span>상품 있는 채널만 보기</span>
+          </label>
+        </div>
+
+        <!-- 결과 테이블 -->
+        <div class="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+          <div class="max-h-[620px] overflow-y-auto">
+            <table class="w-full text-left text-sm border-collapse">
+              <thead class="bg-slate-50 text-slate-500 text-xs uppercase font-semibold sticky top-0 z-10 border-b border-slate-200">
+                <tr>
+                  <th class="px-4 py-3">채널명</th>
+                  <th class="px-4 py-3">서비스명</th>
+                  <th class="px-4 py-3">채널ID</th>
+                  <th class="px-4 py-3">상품번호</th>
+                  <th class="px-4 py-3">영업점/사이트번호</th>
+                  <th class="px-4 py-3">마지막연동일자</th>
+                  <th class="px-3 py-3 text-right">복사</th>
+                </tr>
+              </thead>
+              <tbody id="resultsTableBody" class="divide-y divide-slate-100">
+                <tr>
+                  <td colspan="7" class="px-4 py-16 text-center text-slate-400">
+                    <div class="flex flex-col items-center justify-center gap-2">
+                      <i class="fa-solid fa-box-open text-3xl text-slate-300"></i>
+                      <p>좌측 채널을 클릭하거나 상단의 '전체 채널 일괄 조회'를 눌러주세요.</p>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Toast Message -->
+  <div id="toast" class="fixed bottom-6 right-6 bg-slate-900 text-white px-4 py-3 rounded-lg shadow-xl text-sm font-medium transform transition-all duration-300 translate-y-16 opacity-0 flex items-center gap-2 z-50">
+    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+    <span id="toastMsg">복사되었습니다!</span>
+  </div>
+
+  <script>
+    const STORE_SITE_MAP = {
+      // 영업점 번호
+      "1002": "본점(1002)",
+      "1003": "타임스퀘어점 리빙관(1003)",
+      "1004": "강남점(1004)",
+      "1006": "신세계 사우스시티점(1006)",
+      "1007": "의정부점(1007)",
+      "1008": "광주신세계(1008)",
+      "1009": "센텀시티점(1009)",
+      "1010": "마산점(1010)",
+      "1011": "천안아산점(1011)",
+      "1013": "타임스퀘어점 패션관(1013)",
+      "1017": "김해점(1017)",
+      "1018": "하남점(1018)",
+      "1019": "대구신세계(1019)",
+      "1020": "시코르강남역점(1020)",
+      "1021": "팩토리스토어 강남점(1021)",
+      "1022": "팩토리스토어 고양점(1022)",
+      "1023": "온라인점 (S파트너스)(1023)",
+      "1024": "대전신세계 (ART & SCIENCE)(1024)",
+      "1026": "팩토리스토어 타임스퀘어점(1026)",
+      "1027": "시코르닷컴(C3)(1027)",
+      "1029": "신세계푸드마켓 도곡점(1029)",
+      "1030": "신세계백화점 화장품 온라인점(배스앤바디웍스 온라인점)(1030)",
+      "2551": "NE.O.004(2551)",
+      // 사이트 번호
+      "6001": "이마트몰(6001)",
+      "6002": "트레이더스(6002)",
+      "6004": "신세계몰(6004)",
+      "7008": "아울렛(7008)"
+    };
+
+    const CHANNEL_DATA = [
+      {
+        partner: "G마켓",
+        mainChnlId: "0000015780",
+        channels: [
+          { name: "신세계몰 (온라인)", chnlId: "0000015781" },
+          { name: "신세계몰 (직매입)", chnlId: "0000016345" },
+          { name: "신세계백화점", chnlId: "0000015782" },
+          { name: "프리미엄아울렛", chnlId: "0000017105" },
+          { name: "점포택배", chnlId: "0000018380" },
+          { name: "판매자스타배송", chnlId: "0000021357" },
+          { name: "장보기 (이마트몰/새벽배송)", chnlId: "0000018820" },
+          { name: "장보기 (트레이더스)", chnlId: "0000023802" },
+          { name: "1day", chnlId: "0000019787" },
+          { name: "1day 트레이더스", chnlId: "0000020006" }
+        ]
+      },
+      {
+        partner: "옥션",
+        mainChnlId: "0000015777",
+        channels: [
+          { name: "신세계몰 (온라인)", chnlId: "0000015778" },
+          { name: "신세계몰 (직매입)", chnlId: "0000016346" },
+          { name: "신세계백화점", chnlId: "0000015779" },
+          { name: "프리미엄아울렛", chnlId: "0000017106" },
+          { name: "점포택배", chnlId: "0000018381" },
+          { name: "판매자스타배송", chnlId: "0000021358" },
+          { name: "1day", chnlId: "0000019788" },
+          { name: "1day 트레이더스", chnlId: "0000020007" }
+        ]
+      },
+      {
+        partner: "라이브쇼핑",
+        mainChnlId: "0000019622",
+        channels: [
+          { name: "신세계몰", chnlId: "0000019624" },
+          { name: "신세계백화점", chnlId: "0000019623" }
+        ]
+      },
+      {
+        partner: "11번가",
+        mainChnlId: "0000015958",
+        channels: [
+          { name: "신세계몰", chnlId: "0000015959" },
+          { name: "신세계백화점", chnlId: "0000015960" },
+          { name: "프리미엄아울렛", chnlId: "0000017104" },
+          { name: "장보기 (이마트몰/새벽배송)", chnlId: "0000020717" }
+        ]
+      },
+      {
+        partner: "네이버",
+        mainChnlId: "0000016082",
+        channels: [
+          { name: "신세계백화점", chnlId: "0000016083" },
+          { name: "점포택배", chnlId: "0000018560" },
+          { name: "장보기 (이마트몰)", chnlId: "0000018200" },
+          { name: "장보기 (새벽배송)", chnlId: "0000018201" },
+          { name: "장보기 (트레이더스)", chnlId: "0000018202" }
+        ]
+      },
+      {
+        partner: "W컨셉",
+        mainChnlId: "0000019089",
+        channels: [
+          { name: "신세계몰", chnlId: "0000019091" },
+          { name: "신세계백화점", chnlId: "0000019090" }
+        ]
+      },
+      {
+        partner: "카카오",
+        mainChnlId: "0000020537",
+        channels: [
+          { name: "신세계백화점", chnlId: "0000020540" }
+        ]
+      },
+      {
+        partner: "CTK",
+        mainChnlId: "0000021953",
+        channels: [
+          { name: "신세계백화점", chnlId: "0000021954" }
+        ]
+      }
+    ];
+
+    let currentPartnerIdx = 0;
+    let fetchedData = []; // { partner, channelName, chnlId, itemNo, storeInfo, rawId, modDts }
+
+    function parseLnkgItemId(rawId) {
+      if (!rawId || rawId.length <= 4) return { itemNo: rawId || "", storeInfo: "-" };
+      const itemNo = rawId.slice(0, -4);
+      const suffix = rawId.slice(-4);
+      const storeInfo = STORE_SITE_MAP[suffix] || suffix;
+      return { itemNo, storeInfo };
+    }
+
+    function initTabs() {
+      const tabsEl = document.getElementById("partnerTabs");
+      tabsEl.innerHTML = CHANNEL_DATA.map((p, idx) => `
+        <button onclick="selectPartner(${idx})" id="tab-btn-${idx}" class="p-2 text-xs font-semibold rounded-lg border text-center transition-all ${idx === 0 ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}">
+          ${p.partner}
+          <span class="block text-[10px] text-slate-400 font-mono mt-0.5">${p.channels.length}개</span>
+        </button>
+      `).join("");
+      selectPartner(0);
+    }
+
+    function selectPartner(idx) {
+      currentPartnerIdx = idx;
+      CHANNEL_DATA.forEach((_, i) => {
+        const btn = document.getElementById(`tab-btn-${i}`);
+        if (i === idx) {
+          btn.className = "p-2 text-xs font-semibold rounded-lg border text-center transition-all bg-blue-50 border-blue-200 text-blue-700 shadow-sm";
+        } else {
+          btn.className = "p-2 text-xs font-semibold rounded-lg border text-center transition-all bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100";
+        }
+      });
+      const partner = CHANNEL_DATA[idx];
+      document.getElementById("currentPartnerTitle").textContent = `${partner.partner} 서비스명`;
+
+      const listEl = document.getElementById("channelList");
+      listEl.innerHTML = partner.channels.map(ch => `
+        <div id="card-${ch.chnlId}" class="flex items-center justify-between p-2.5 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50/30 transition-all text-xs group">
+          <div>
+            <div class="font-medium text-slate-800">${ch.name}</div>
+            <div class="text-[11px] text-slate-400 font-mono">${ch.chnlId}</div>
+          </div>
+          <button onclick="fetchSingleChannel('${partner.partner}', '${ch.name}', '${ch.chnlId}')" class="px-2.5 py-1 bg-white group-hover:bg-blue-600 group-hover:text-white border border-slate-200 group-hover:border-blue-600 text-slate-700 rounded text-xs font-semibold transition-all">
+            조회
+          </button>
+        </div>
+      `).join("");
+    }
+
+    function updateScopeBadge(text, kind = 'channel') {
+      const txtEl = document.getElementById("currentScopeText");
+      const badgeEl = document.getElementById("currentScopeBadge");
+      txtEl.textContent = text;
+
+      if (kind === 'all') {
+        badgeEl.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-blue-600 text-white shadow-sm shadow-blue-500/20";
+        badgeEl.querySelector("i").className = "fa-solid fa-earth-americas text-white";
+      } else if (kind === 'partner') {
+        badgeEl.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200";
+        badgeEl.querySelector("i").className = "fa-solid fa-store text-indigo-500";
+      } else {
+        badgeEl.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200";
+        badgeEl.querySelector("i").className = "fa-solid fa-crosshairs text-amber-600";
+      }
+    }
+
+    function highlightChannelCard(activeChnlId) {
+      const partner = CHANNEL_DATA[currentPartnerIdx];
+      partner.channels.forEach(ch => {
+        const el = document.getElementById(`card-${ch.chnlId}`);
+        if (!el) return;
+        if (activeChnlId === 'all') {
+          el.className = "flex items-center justify-between p-2.5 rounded-lg border border-indigo-300 bg-indigo-50/40 text-xs transition-all";
+        } else if (ch.chnlId === activeChnlId) {
+          el.className = "flex items-center justify-between p-2.5 rounded-lg border-2 border-blue-500 bg-blue-50/60 shadow-sm text-xs transition-all ring-2 ring-blue-500/10";
+        } else {
+          el.className = "flex items-center justify-between p-2.5 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50/30 transition-all text-xs group";
+        }
+      });
+    }
+
+    async function callApi(chnlId) {
+      const url = `https://qa-cloudapi.ssgadm.com/alln/market-collect-oracle/alliance-mcp/recent-linkage-items?chnlId=${chnlId}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    }
+
+    function showLoading(show, text = "조회 중...") {
+      const el = document.getElementById("loadingIndicator");
+      const txt = document.getElementById("loadingText");
+      if (show) {
+        txt.textContent = text;
+        el.classList.remove("hidden");
+        el.classList.add("flex");
+      } else {
+        el.classList.add("hidden");
+        el.classList.remove("flex");
+      }
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById("toast");
+      document.getElementById("toastMsg").textContent = msg;
+      toast.classList.remove("translate-y-16", "opacity-0");
+      setTimeout(() => {
+        toast.classList.add("translate-y-16", "opacity-0");
+      }, 2000);
+    }
+
+    // 조건 3: 채널명 선택 > 서비스명 조회시 (해당 채널 1개만 focus 조회)
+    async function fetchSingleChannel(partner, channelName, chnlId) {
+      showLoading(true, `[${partner}] ${channelName} 조회 중...`);
+      highlightChannelCard(chnlId);
+      updateScopeBadge(`[${partner}] ${channelName} (${chnlId})`, 'channel');
+
+      try {
+        const json = await callApi(chnlId);
+        const items = json.data || [];
+        // 포커스 모드: 이전 다른 채널 결과는 모두 비우고 해당 서비스명 결과만 표시
+        fetchedData = [];
+        if (items.length === 0) {
+          fetchedData.push({
+            partner,
+            channelName,
+            chnlId,
+            itemNo: null,
+            storeInfo: "-",
+            rawId: null,
+            modDts: "-"
+          });
+        } else {
+          items.forEach(it => {
+            const { itemNo, storeInfo } = parseLnkgItemId(it.lnkgItemId);
+            fetchedData.push({
+              partner,
+              channelName,
+              chnlId,
+              itemNo,
+              storeInfo,
+              rawId: it.lnkgItemId,
+              modDts: it.modDts
+            });
+          });
+        }
+        renderTable();
+        showToast(`[${partner} > ${channelName}] 조회 완료 (${items.length}건)`);
+      } catch (e) {
+        alert(`조회 실패 (${chnlId}): ${e.message}`);
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    // 조건 2: 채널명 선택 > 이 제휴사만 조회 선택시 (해당 채널명의 전체 상품번호만 focus 조회)
+    async function fetchCurrentPartnerChannels() {
+      const partner = CHANNEL_DATA[currentPartnerIdx];
+      const channels = partner.channels;
+      showLoading(true, `[${partner.partner}] 전체 ${channels.length}개 서비스 조회 중...`);
+      highlightChannelCard('all');
+      updateScopeBadge(`[${partner.partner}] 전체 서비스 (${channels.length}개)`, 'partner');
+
+      const promises = channels.map(async ch => {
+        try {
+          const json = await callApi(ch.chnlId);
+          return { partner: partner.partner, channelName: ch.name, chnlId: ch.chnlId, items: json.data || [] };
+        } catch(e) {
+          return { partner: partner.partner, channelName: ch.name, chnlId: ch.chnlId, items: [], error: e.message };
+        }
+      });
+
+      const resList = await Promise.all(promises);
+      // 포커스 모드: 이전 데이터를 모두 비우고 해당 제휴사 전체 서비스 결과만 표시
+      fetchedData = [];
+
+      resList.forEach(r => {
+        if (r.items.length === 0) {
+          fetchedData.push({
+            partner: r.partner,
+            channelName: r.channelName,
+            chnlId: r.chnlId,
+            itemNo: null,
+            storeInfo: "-",
+            rawId: null,
+            modDts: "-"
+          });
+        } else {
+          r.items.forEach(it => {
+            const { itemNo, storeInfo } = parseLnkgItemId(it.lnkgItemId);
+            fetchedData.push({
+              partner,
+              channelName,
+              chnlId,
+              itemNo,
+              storeInfo,
+              rawId: it.lnkgItemId,
+              modDts: it.modDts
+            });
+          });
+        }
+      });
+
+      renderTable();
+      showLoading(false);
+      showToast(`${partner.partner} 조회 완료`);
+    }
+
+    // 조건 1: 전체채널일괄조회시 (전체 채널 & 상품번호 focus 조회)
+    async function fetchAllChannels() {
+      const allTargets = [];
+      CHANNEL_DATA.forEach(p => {
+        p.channels.forEach(ch => {
+          allTargets.push({ partner: p.partner, channelName: ch.name, chnlId: ch.chnlId });
+        });
+      });
+
+      showLoading(true, `전체 33개 채널 일괄 조회 중...`);
+      updateScopeBadge(`전체 제휴사 모든 채널 (33개)`, 'all');
+      highlightChannelCard(null);
+
+      const btn = document.getElementById("btnFetchAll");
+      btn.disabled = true;
+      btn.classList.add("opacity-50");
+
+      try {
+        const promises = allTargets.map(async target => {
+          try {
+            const json = await callApi(target.chnlId);
+            return { ...target, items: json.data || [] };
+          } catch (e) {
+            return { ...target, items: [], error: e.message };
+          }
+        });
+
+        const resList = await Promise.all(promises);
+        fetchedData = [];
+        resList.forEach(r => {
+          if (r.items.length === 0) {
+            fetchedData.push({
+              partner: r.partner,
+              channelName: r.channelName,
+              chnlId: r.chnlId,
+              itemNo: null,
+              storeInfo: "-",
+              rawId: null,
+              modDts: "-"
+            });
+          } else {
+            r.items.forEach(it => {
+              const { itemNo, storeInfo } = parseLnkgItemId(it.lnkgItemId);
+              fetchedData.push({
+                partner: r.partner,
+                channelName: r.channelName,
+                chnlId: r.chnlId,
+                itemNo,
+                storeInfo,
+                rawId: it.lnkgItemId,
+                modDts: it.modDts
+              });
+            });
+          }
+        });
+
+        renderTable();
+        showToast(`전체 33개 채널 조회 완료!`);
+      } catch (err) {
+        alert("일괄 조회 중 오류가 발생했습니다: " + err.message);
+      } finally {
+        showLoading(false);
+        btn.disabled = false;
+        btn.classList.remove("opacity-50");
+      }
+    }
+
+    function fetchCustomChannel() {
+      const input = document.getElementById("customChnlId");
+      const id = input.value.trim();
+      if (!id) {
+        alert("채널 ID를 입력하세요.");
+        return;
+      }
+      let partnerName = "직접입력";
+      let chnlName = "직접입력 채널";
+      for (const p of CHANNEL_DATA) {
+        const found = p.channels.find(c => c.chnlId === id);
+        if (found) {
+          partnerName = p.partner;
+          chnlName = found.name;
+          break;
+        }
+      }
+      fetchSingleChannel(partnerName, chnlName, id);
+    }
+
+    function renderTable() {
+      const q = document.getElementById("tableFilter").value.trim().toLowerCase();
+      const hasItemsOnly = document.getElementById("filterHasItemsOnly").checked;
+      const tbody = document.getElementById("resultsTableBody");
+
+      const uniqueChannels = new Set(fetchedData.map(d => d.chnlId));
+      const validItems = fetchedData.filter(d => d.itemNo !== null);
+      
+      document.getElementById("statChannelCount").textContent = `${uniqueChannels.size}개`;
+      document.getElementById("statItemCount").textContent = `${validItems.length}건`;
+
+      let filtered = fetchedData;
+      if (hasItemsOnly) {
+        filtered = filtered.filter(d => d.itemNo !== null);
+      }
+      if (q) {
+        filtered = filtered.filter(d => 
+          (d.partner && d.partner.toLowerCase().includes(q)) ||
+          (d.channelName && d.channelName.toLowerCase().includes(q)) ||
+          (d.chnlId && d.chnlId.toLowerCase().includes(q)) ||
+          (d.itemNo && d.itemNo.toLowerCase().includes(q)) ||
+          (d.storeInfo && d.storeInfo.toLowerCase().includes(q)) ||
+          (d.modDts && d.modDts.toLowerCase().includes(q))
+        );
+      }
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="px-4 py-12 text-center text-slate-400">
+              조회된 데이터가 없거나 필터 조건에 맞는 항목이 없습니다.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(row => {
+        const hasItem = row.itemNo !== null;
+        return `
+          <tr class="hover:bg-slate-50/80 transition-colors ${!hasItem ? 'bg-slate-50/40 text-slate-400' : ''}">
+            <td class="px-4 py-3 font-medium text-slate-800">${row.partner}</td>
+            <td class="px-4 py-3">${row.channelName}</td>
+            <td class="px-4 py-3 font-mono text-xs text-slate-500">${row.chnlId}</td>
+            <td class="px-4 py-3">
+              ${hasItem ? `<span class="font-mono font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">${row.itemNo}</span>` : '<span class="text-xs text-slate-400 italic">연동 상품 없음 (0건)</span>'}
+            </td>
+            <td class="px-4 py-3 font-medium text-xs text-slate-600">${hasItem ? row.storeInfo : '-'}</td>
+            <td class="px-4 py-3 text-xs text-slate-500">${row.modDts}</td>
+            <td class="px-3 py-3 text-right">
+              ${hasItem ? `
+                <button onclick="copySingle('${row.itemNo}')" title="상품번호 복사" class="p-1 px-2 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition-colors">
+                  <i class="fa-regular fa-copy"></i>
+                </button>
+              ` : '-'}
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function filterResultsTable() {
+      renderTable();
+    }
+
+    function copySingle(val) {
+      navigator.clipboard.writeText(val).then(() => {
+        showToast(`상품번호 [${val}] 복사 완료`);
+      });
+    }
+
+    function copyItemIds(delimiter) {
+      const validItems = fetchedData
+        .filter(d => d.itemNo !== null)
+        .map(d => d.itemNo);
+
+      if (validItems.length === 0) {
+        alert("복사할 상품번호가 없습니다.");
+        return;
+      }
+
+      const uniqueIds = Array.from(new Set(validItems));
+      const sep = delimiter === 'newline' ? '\n' : ', ';
+      const text = uniqueIds.join(sep);
+
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(`${uniqueIds.length}개 상품번호 복사 완료!`);
+      });
+    }
+
+    function exportCSV() {
+      const validRows = fetchedData.filter(d => d.itemNo !== null);
+      if (validRows.length === 0) {
+        alert("내보낼 상품 데이터가 없습니다.");
+        return;
+      }
+
+      // 지정 양식 헤더: 채널명,서비스명,채널ID,상품번호,영업점번호,마지막연동일자
+      // 상품번호나 채널ID가 0으로 시작할 때 엑셀에서 숫자로 자동변환되어 0이 잘리는 현상 방지: ="" 형식 적용
+      let csv = "\uFEFF채널명,서비스명,채널ID,상품번호,영업점번호,마지막연동일자\n";
+      validRows.forEach(r => {
+        const chnlIdCell = r.chnlId.startsWith('0') ? `=\"${r.chnlId}\"` : r.chnlId;
+        const itemNoCell = r.itemNo.startsWith('0') ? `=\"${r.itemNo}\"` : r.itemNo;
+        csv += `"${r.partner}","${r.channelName}",${chnlIdCell},${itemNoCell},"${r.storeInfo}","${r.modDts}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      a.href = url;
+      a.download = `QA_제휴연동상품_${dateStr}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      initTabs();
+    });
+  </script>
+</body>
+</html>
