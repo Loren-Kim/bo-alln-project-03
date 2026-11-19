@@ -18,6 +18,7 @@ import subprocess
 from datetime import datetime
 
 WORKSPACE_DIR = os.path.dirname(os.path.abspath(__file__))
+RESULT_DIR = os.path.expanduser("~/Documents/제휴상품/AllnProductResult")
 DOWNLOADS_DIR = os.path.expanduser("~/Downloads")
 PID_FILE = os.path.join(WORKSPACE_DIR, "daemon.pid")
 LOG_FILE = os.path.join(WORKSPACE_DIR, "sync.log")
@@ -57,8 +58,12 @@ def run_sync(reason="배치"):
         log(f"❌ 동기화 오류 ({reason}): {e}")
 
 def get_prelinkage_files_snapshot():
-    """Downloads 폴더의 선연동 CSV 파일들의 최신 수정시각(mtime) 스냅샷 생성"""
-    files = glob.glob(os.path.join(DOWNLOADS_DIR, "선연동_*.csv"))
+    """AllnProductResult 및 Downloads 폴더의 선연동 CSV 파일들의 최신 수정시각(mtime) 스냅샷 생성"""
+    files = []
+    if os.path.exists(RESULT_DIR):
+        files.extend(glob.glob(os.path.join(RESULT_DIR, "선연동_*.csv")))
+    if os.path.exists(DOWNLOADS_DIR):
+        files.extend(glob.glob(os.path.join(DOWNLOADS_DIR, "선연동_*.csv")))
     snapshot = {}
     for f in files:
         try:
@@ -117,7 +122,8 @@ def run_daemon():
         f.write(str(os.getpid()))
 
     log(f"🚀 자동 동기화 데몬 시작 (PID: {os.getpid()})")
-    log(f"설정: 평일 {WORK_START_HOUR:02d}:00 ~ {WORK_END_HOUR:02d}:00 (1시간 배치) + Downloads 감시")
+    log(f"설정: 평일 {WORK_START_HOUR:02d}:00 ~ {WORK_END_HOUR:02d}:00 (1시간 배치)")
+    log(f"감시 폴더: {RESULT_DIR}")
 
     last_batch_time = 0
     known_snapshot = get_prelinkage_files_snapshot()
@@ -133,11 +139,22 @@ def run_daemon():
                 if fpath not in known_snapshot or mtime > known_snapshot[fpath] + 0.1:
                     has_new_or_modified = True
                     fname = os.path.basename(fpath)
-                    log(f"📂 새로운 선연동 파일 다운로드 감지: {fname}")
+                    log(f"📂 새로운 선연동 파일 감지: {fname}")
                     break
 
             if has_new_or_modified:
                 time.sleep(3)  # 다운로드 완료를 위한 3초 버퍼
+                # 혹시 Downloads 폴더에 받아진 경우 AllnProductResult 폴더로 자동 이동 정리
+                if os.path.exists(RESULT_DIR):
+                    dl_files = glob.glob(os.path.join(DOWNLOADS_DIR, "선연동_*.csv"))
+                    for df in dl_files:
+                        try:
+                            dest = os.path.join(RESULT_DIR, os.path.basename(df))
+                            os.replace(df, dest)
+                            log(f"📥 Downloads -> AllnProductResult 자동 이관: {os.path.basename(df)}")
+                        except Exception as e:
+                            log(f"파일 이관 오류 ({df}): {e}")
+
                 known_snapshot = get_prelinkage_files_snapshot()
                 run_sync(reason="새 파일 다운로드 감지")
                 last_batch_time = now_ts

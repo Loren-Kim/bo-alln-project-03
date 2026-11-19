@@ -220,7 +220,7 @@ def git_commit_and_push():
         log(f"Git 변경 파일 감지:\n{changes}")
         # Git add (웹 대시보드 및 스크립트 코드)
         subprocess.run(["git", "add", "index.html", "qa_item_finder.html", "fetch_recent_items.py", 
-                        "README.md", "sync_all.py", ".gitignore"], 
+                        "auto_sync_daemon.py", "README.md", "sync_all.py", ".gitignore"], 
                        cwd=WORKSPACE_DIR, check=True)
                        
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
