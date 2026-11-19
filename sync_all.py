@@ -22,31 +22,67 @@ DOWNLOADS_DIR = os.path.expanduser("~/Downloads")
 LOG_FILE = os.path.join(WORKSPACE_DIR, "sync.log")
 
 CHANNEL_NAME_TO_ID = {
+    # 네이버
+    "네이버(백화점)": "0000016083",
+    "네이버(신세계백화점)": "0000016083",
+    "네이버(점포택배)": "0000018560",
+    "네이버(장보기)": "0000018200",
+    "네이버(이마트몰)": "0000018200",
+    "네이버(새벽배송)": "0000018201",
+    "네이버(트레이더스)": "0000018202",
+    # G마켓
     "지마켓(백화점)": "0000015782",
-    "옥션(백화점)": "0000015779",
+    "지마켓(신세계백화점)": "0000015782",
+    "G마켓(백화점)": "0000015782",
     "지마켓(신세계몰)": "0000015781",
-    "옥션(신세계몰)": "0000015778",
+    "지마켓(온라인)": "0000015781",
+    "G마켓(신세계몰)": "0000015781",
+    "지마켓(직매입)": "0000016345",
+    "G마켓(직매입)": "0000016345",
     "프리미엄아울렛(지마켓)": "0000017105",
+    "지마켓(아울렛)": "0000017105",
+    "G마켓(아울렛)": "0000017105",
+    "지마켓(점포택배)": "0000018380",
+    "G마켓(점포택배)": "0000018380",
+    "지마켓(장보기)": "0000018820",
+    "G마켓(장보기)": "0000018820",
+    "지마켓(트레이더스)": "0000023802",
+    "G마켓(트레이더스)": "0000023802",
+    # 옥션
+    "옥션(신세계몰)": "0000015778",
+    "옥션(온라인)": "0000015778",
+    "옥션(직매입)": "0000016346",
+    "옥션(백화점)": "0000015779",
+    "옥션(신세계백화점)": "0000015779",
     "프리미엄아울렛(옥션)": "0000017106",
+    "옥션(아울렛)": "0000017106",
+    "옥션(점포택배)": "0000018381",
+    # 라이브쇼핑
+    "라이브쇼핑(백화점)": "0000019623",
+    "라이브쇼핑(신세계백화점)": "0000019623",
+    "라이브쇼핑(몰)": "0000019624",
+    "라이브쇼핑(신세계몰)": "0000019624",
+    # 11번가
     "11번가(신세계몰)": "0000015959",
+    "11번가(몰)": "0000015959",
     "11번가(신세계백화점)": "0000015960",
     "11번가(백화점)": "0000015960",
     "11번가(프리미엄아울렛)": "0000017104",
     "11번가(아울렛)": "0000017104",
+    "11번가(장보기)": "0000020717",
+    "11번가(이마트몰)": "0000020717",
+    # W컨셉
     "W컨셉(신세계백화점)": "0000019090",
     "W컨셉(백화점)": "0000019090",
     "W컨셉(신세계몰)": "0000019091",
     "W컨셉(몰)": "0000019091",
-    "라이브쇼핑(백화점)": "0000019623",
-    "라이브쇼핑(몰)": "0000019624",
-    "현대Hmall": "0000016083",
-    "현대Hmall(전문관)": "0000018200",
-    "카카오(선물하기)": "0000018380",
-    "카카오(백화점)": "0000018820",
-    "카카오선물하기(몰)": "0000020717",
-    "롯데ON(백화점)": "0000020540",
-    "티몬(신세계몰)": "0000021954",
-    "당근(백화점)": "0000023802"
+    # 카카오
+    "카카오(신세계백화점)": "0000020540",
+    "카카오(백화점)": "0000020540",
+    # CTK
+    "CTK(신세계백화점)": "0000021954",
+    "CTK(백화점)": "0000021954",
+    "CTK": "0000021954"
 }
 
 def log(msg):
@@ -63,7 +99,7 @@ def scan_downloads_for_prelinkage():
     # 1순위: ~/Documents/제휴상품/AllnProductResult, 2순위: ~/Downloads
     csv_files = []
     if os.path.exists(RESULT_DIR):
-        csv_files.extend(glob.glob(os.path.join(RESULT_DIR, "선연동_*.csv")))
+        csv_files.extend(glob.glob(os.path.join(RESULT_DIR, "*.csv")))
     if os.path.exists(DOWNLOADS_DIR):
         csv_files.extend(glob.glob(os.path.join(DOWNLOADS_DIR, "선연동_*.csv")))
     
@@ -110,15 +146,15 @@ def scan_downloads_for_prelinkage():
         for i in range(min(10, len(lines))):
             cols = [c.strip().strip('"').strip("'") for c in lines[i].split(',')]
             for idx, c in enumerate(cols):
-                if any(k in c for k in ["상품ID", "SSG상품ID", "ITEM_ID"]):
+                if (any(k in c for k in ["상품ID", "SSG상품ID", "ITEM_ID"])) and not any(x in c for x in ["제휴", "ALLNCO", "allnco"]):
                     ssg_col = idx
-                if any(k in c for k in ["제휴상품ID", "제휴사상품ID", "ALLNCO_ITEM_ID"]):
+                if any(k in c for k in ["제휴상품ID", "제휴사상품ID", "ALLNCO_ITEM_ID", "allncoItemId"]):
                     alln_col = idx
             if ssg_col != -1 and alln_col != -1:
                 start_row = i + 1
                 break
                 
-        if ssg_col == -1 or alln_col == -1:
+        if ssg_col == -1 or alln_col == -1 or not chnl_id:
             continue
             
         for line in lines[start_row:]:
@@ -128,10 +164,9 @@ def scan_downloads_for_prelinkage():
             if len(cols) > max(ssg_col, alln_col):
                 ssg_id = cols[ssg_col].strip()
                 alln_id = cols[alln_col].strip()
-                if ssg_id and alln_id and alln_id.lower() not in ["null", "-", "", "none"]:
-                    if chnl_id:
-                        mapping[f"{chnl_id}_{ssg_id}"] = alln_id
-                    mapping[ssg_id] = alln_id
+                if ssg_id and alln_id and alln_id.lower() not in ["null", "-", "", "none"] and ssg_id != "상품ID":
+                    # 오직 채널 고유 키로만 저장 (타 채널 번호 오염 차단)
+                    mapping[f"{chnl_id}_{ssg_id}"] = alln_id
                     
     log(f"총 {len(mapping)}건의 선연동 제휴상품번호 매핑 수집 완료")
     return mapping
@@ -153,12 +188,16 @@ def update_codebase_mapping(new_mapping):
     existing_map = {}
     if match:
         try:
-            existing_map = json.loads(match.group(1))
+            raw_map = json.loads(match.group(1))
+            # 오염된 단독 키 제거하고 chnlId_ssgNo 키만 보존
+            for k, v in raw_map.items():
+                if "_" in k and not k.endswith("_제휴상품ID") and v != "제휴상품ID":
+                    existing_map[k] = v
         except Exception:
             pass
             
     existing_map.update(new_mapping)
-    log(f"통합된 BUILTIN_ALLNCO_MAP 항목 수: {len(existing_map)}건")
+    log(f"정제된 BUILTIN_ALLNCO_MAP 항목 수: {len(existing_map)}건")
     map_json_str = json.dumps(existing_map, ensure_ascii=False)
     
     # fetch_recent_items.py 갱신
