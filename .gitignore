@@ -3,6 +3,7 @@
 ~$*.xlsx
 *.csv
 sync.log
+daemon.pid
 
 # OS 생성 파일 제외
 .DS_Store

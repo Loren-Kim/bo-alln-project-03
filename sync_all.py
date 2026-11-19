@@ -223,20 +223,12 @@ def git_commit_and_push():
     else:
         log("새로운 파일 변경사항이 없습니다.")
 
-    # 미푸시 커밋(unpushed commits) 확인
-    unpushed_res = subprocess.run(["git", "log", "origin/main..HEAD", "--oneline"], cwd=WORKSPACE_DIR, capture_output=True, text=True)
-    unpushed = unpushed_res.stdout.strip()
-    if not unpushed:
-        log("원격 저장소(origin/main)와 동일한 상태입니다. Push를 생략합니다.")
-        return True
-
-    log(f"원격 저장소에 반영할 커밋 {len(unpushed.splitlines())}건 감지:\n{unpushed}")
-    log("Git push origin main 실행 중...")
-    
+    # Git push -u origin main 시도
+    log("Git push -u origin main 실행 중...")
     env = os.environ.copy()
-    env["GIT_TERMINAL_PROMPT"] = "0"  # 무한 프롬프트 대기 방지
+    env["GIT_TERMINAL_PROMPT"] = "0"  # 무한 대기 방지
     
-    push_res = subprocess.run(["git", "push", "origin", "main"], cwd=WORKSPACE_DIR, capture_output=True, text=True, env=env)
+    push_res = subprocess.run(["git", "push", "-u", "origin", "main"], cwd=WORKSPACE_DIR, capture_output=True, text=True, env=env)
     if push_res.returncode == 0:
         log("Git push 성공! GitHub Pages에 최신 상태가 자동 배포됩니다.")
         return True
@@ -245,7 +237,7 @@ def git_commit_and_push():
         log(f"Git push 실패: {err_msg}")
         if "Authentication failed" in err_msg or "could not read Username" in err_msg or "terminal prompts disabled" in err_msg:
             log("⚠️ [안내] GitHub 로그인 인증(PAT) 정보가 로컬 키체인에 등록되지 않았습니다.")
-            log("👉 터미널에서 1회 'git push origin main'을 실행하여 GitHub 계정(토큰)으로 로그인하시면 Mac 키체인에 저장되어 다음부터 완전 자동 푸시됩니다.")
+            log("👉 터미널에서 1회 'git push -u origin main'을 실행하여 GitHub 계정(토큰)으로 로그인하시면 Mac 키체인에 저장되어 다음부터 완전 자동 푸시됩니다.")
         return False
 
 def main():
