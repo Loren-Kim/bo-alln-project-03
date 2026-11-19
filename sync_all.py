@@ -17,6 +17,7 @@ import subprocess
 from datetime import datetime
 
 WORKSPACE_DIR = os.path.dirname(os.path.abspath(__file__))
+RESULT_DIR = os.path.expanduser("~/Documents/제휴상품/AllnProductResult")
 DOWNLOADS_DIR = os.path.expanduser("~/Downloads")
 LOG_FILE = os.path.join(WORKSPACE_DIR, "sync.log")
 
@@ -59,9 +60,16 @@ def log(msg):
         pass
 
 def scan_downloads_for_prelinkage():
-    pattern = os.path.join(DOWNLOADS_DIR, "선연동_*.csv")
-    csv_files = glob.glob(pattern)
-    log(f"Downloads 폴더 내 선연동 CSV 검색 결과: {len(csv_files)}개 발견")
+    # 1순위: ~/Documents/제휴상품/AllnProductResult, 2순위: ~/Downloads
+    csv_files = []
+    if os.path.exists(RESULT_DIR):
+        csv_files.extend(glob.glob(os.path.join(RESULT_DIR, "선연동_*.csv")))
+    if os.path.exists(DOWNLOADS_DIR):
+        csv_files.extend(glob.glob(os.path.join(DOWNLOADS_DIR, "선연동_*.csv")))
+    
+    # 중복 제거
+    csv_files = sorted(list(set(csv_files)))
+    log(f"선연동 CSV 검색 결과: 총 {len(csv_files)}개 발견 (경로: {RESULT_DIR})")
     
     mapping = {}
     for filepath in sorted(csv_files):

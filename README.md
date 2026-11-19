@@ -16,7 +16,8 @@
 
 ### 2. 업무시간 자동 동기화 & 다운로드 감시 데몬 (`auto_sync_daemon.py`)
 - **평일 업무시간(09:00~19:00) 1시간 정기 배치**: 별도 작업 없이 1시간마다 최신 현황을 자동 조회하여 대시보드와 엑셀을 갱신합니다.
-- **다운로드 감시(File Watcher)**: `~/Downloads` 폴더에 `선연동_*.csv` 파일이 새로 다운로드되면 3초 후 즉시 감지하여 자동 동기화 및 깃허브 푸시를 실행합니다.
+- **선연동 파일 전용 폴더 감시**: `~/Documents/제휴상품/AllnProductResult` (문서 > 제휴상품 > AllnProductResult) 폴더에 `선연동_*.csv` 파일이 들어오면 즉시 감지하여 자동 동기화 및 깃허브 푸시를 실행합니다.
+- **Downloads 폴더 자동 이관**: 혹시 기본 다운로드 폴더(`~/Downloads`)에 파일이 받아지더라도 자동으로 `AllnProductResult` 폴더로 이관 정리한 후 동기화를 진행합니다.
 - **명령어**:
   - 데몬 시작: `python3 auto_sync_daemon.py &`
   - 상태 확인: `python3 auto_sync_daemon.py --status`
@@ -24,7 +25,7 @@
 
 ### 3. 원클릭 통합 동기화 (`sync_all.py`)
 - 수동 실행 시: `python3 sync_all.py`
-- Downloads 폴더 내 선연동 CSV 전체 스캔 ➜ 내장 캐시 갱신 ➜ QA BO 27개 채널 크롤링 ➜ 엑셀/CSV 생성 ➜ Git 커밋 & 푸시 일괄 처리
+- `AllnProductResult` 폴더 내 선연동 CSV 전체 스캔 ➜ 내장 캐시 갱신 ➜ QA BO 27개 채널 크롤링 ➜ 엑셀/CSV 생성 ➜ Git 커밋 & 푸시 일괄 처리
 
 ### 4. 배송주체 컬러셋 & 빠른 원클릭 필터
 - 배송주체별 시각적 컬러셋 적용:
