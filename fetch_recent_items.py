@@ -648,7 +648,7 @@ def save_to_excel(rows, filename):
     wb.save(filename)
     print(f"[SUCCESS] Excel(.xlsx) 저장 완료: {filename} (총 {len(rows)}행, 텍스트 서식 완벽 보존)")
 
-def run_query(target_channels, save_csv=None, save_xlsx=None, copy_to_clipboard=False, copy_type="ssg", bo_cookies=DEFAULT_BO_COOKIES):
+def run_query(target_channels, save_csv=None, save_xlsx=None, copy_to_clipboard=False, copy_type="ssg", bo_cookies=DEFAULT_BO_COOKIES, verify_urls=False):
     print(f"\n[INFO] 1단계: 총 {len(target_channels)}개 채널 연동 상품 조회 시작...")
     results = []
     
@@ -763,6 +763,26 @@ def run_query(target_channels, save_csv=None, save_xlsx=None, copy_to_clipboard=
     print("="*145)
     print(f"총 {len(results)}개 채널 중 상품 보유: {sum(1 for r in results if len(r['items']) > 0)}개, 총 상품 수: {total_items_count}건\n")
 
+    if verify_urls and csv_rows:
+        print("[INFO] 4단계: 제휴 QA 상품 페이지 URL 접속 유효성 검증 중...")
+        items_to_verify = []
+        for row in csv_rows:
+            allnco_no = row.get("제휴상품번호")
+            partner = row.get("채널명")
+            if allnco_no and allnco_no not in ["-", "확인필요"]:
+                url = get_partner_product_url(partner, allnco_no)
+                if url:
+                    items_to_verify.append({"ssgNo": row["SSG상품번호"], "url": url})
+        if items_to_verify:
+            check_results = verify_partner_urls_batch(items_to_verify)
+            err_cnt = 0
+            for row in csv_rows:
+                res = check_results.get(row["SSG상품번호"])
+                if res and not res.get("valid"):
+                    row["제휴상품번호"] = "확인필요"
+                    err_cnt += 1
+            print(f"[INFO] URL 검증 완료 (총 {len(items_to_verify)}건 검사, 비정상/접속불가: {err_cnt}건 -> '확인필요' 마킹)")
+
     if save_csv:
         if not csv_rows:
             print("[WARN] 조회된 상품이 없어 CSV를 생성하지 않았습니다.")
@@ -791,8 +811,76 @@ def run_query(target_channels, save_csv=None, save_xlsx=None, copy_to_clipboard=
 
     return results
 
+def check_partner_url_valid(url, timeout=2.5):
+    """제휴 QA 상품 페이지 접속 및 유효성 검증 (SSL 만료 허용, 리디렉션 추적)"""
+    if not url:
+        return False, "no_url"
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+        )
+        ctx = ssl._create_unverified_context()
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+            code = resp.getcode()
+            return (200 <= code < 400), code
+    except urllib.error.HTTPError as e:
+        return False, e.code
+    except Exception as e:
+        return False, str(e)
+
+def verify_partner_urls_batch(items, max_workers=20):
+    """멀티스레드 병렬 URL 유효성 검증"""
+    results = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_item = {
+            executor.submit(check_partner_url_valid, it.get("url")): it
+            for it in items if it.get("url")
+        }
+        for future in concurrent.futures.as_completed(future_to_item):
+            it = future_to_item[future]
+            ssg_no = it.get("ssgNo") or it.get("id")
+            try:
+                valid, status = future.result()
+                results[ssg_no] = {"valid": valid, "status": status}
+            except Exception as e:
+                results[ssg_no] = {"valid": False, "status": str(e)}
+    return results
+
 class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     bo_cookies = DEFAULT_BO_COOKIES
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
+    def do_POST(self):
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/api/verify-urls":
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                data = json.loads(body)
+                items = data.get("items", [])
+                results = verify_partner_urls_batch(items)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"results": results}).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+        else:
+            self.send_error(404, "File not found")
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -817,6 +905,13 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(json.dumps(res_map).encode("utf-8"))
+        elif parsed.path == "/api/verify-urls":
+            # GET 방식으로도 헬스체크 지원
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok"}).encode("utf-8"))
         else:
             super().do_GET()
 
@@ -847,6 +942,7 @@ def main():
     parser.add_argument("--cookie", type=str, default=DEFAULT_BO_COOKIES, help="BO 세션 쿠키 문자열")
     parser.add_argument("--copy", action="store_true", help="조회된 번호를 macOS 클립보드로 복사")
     parser.add_argument("--copy-type", choices=["ssg", "allnco"], default="ssg", help="복사할 번호 종류 (ssg: SSG상품번호, allnco: 제휴상품번호)")
+    parser.add_argument("--verify-urls", action="store_true", help="제휴 QA 상품 페이지 URL 접속 유효성 검증 수행")
     parser.add_argument("--serve", action="store_true", help="로컬 프록시 웹 서버 실행 (브라우저 실시간 BO 연동 지원)")
     parser.add_argument("--port", type=int, default=8080, help="웹 서버 포트 (기본값: 8080)")
     
@@ -992,7 +1088,8 @@ def main():
         save_xlsx=xlsx_file,
         copy_to_clipboard=args.copy,
         copy_type=args.copy_type,
-        bo_cookies=args.cookie
+        bo_cookies=args.cookie,
+        verify_urls=args.verify_urls
     )
 
 if __name__ == "__main__":

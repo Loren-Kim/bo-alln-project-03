@@ -32,7 +32,11 @@
         </div>
         <p class="text-sm text-slate-500 mt-1">100일 이내 재고 있는 연동 상품과 각 제휴사별 '제휴상품번호'를 실시간으로 조회합니다.</p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-3">
+        <label class="inline-flex items-center gap-1.5 text-xs text-slate-600 bg-white border border-slate-200 px-3 py-2 rounded-lg cursor-pointer hover:bg-slate-50 transition-all select-none shadow-sm" title="조회 시 제휴사 QA 상품 페이지 접속 유효성을 검증하고, 접속 불가 시 '확인필요'로 표시합니다 (내부망/HOST 설정 환경 권장)">
+          <input type="checkbox" id="checkUrlHealthToggle" checked class="w-3.5 h-3.5 text-blue-600 rounded border-slate-300 focus:ring-blue-500">
+          <span class="font-medium flex items-center gap-1.5"><i class="fa-solid fa-shield-halved text-blue-500"></i> URL 유효성 검증</span>
+        </label>
         <button id="btnFetchAll" onclick="fetchAllChannels()" class="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm transition-all shadow-sm shadow-blue-500/20 active:scale-95">
           <i class="fa-solid fa-cloud-arrow-down"></i>
           <span>전체 채널 일괄 조회 (27개)</span>
@@ -773,19 +777,19 @@
     }
 
     const SHPP_MAIN_MAP = {
-      "11": "매장집하(11)",
-      "12": "PP입고(12)",
-      "13": "센터입고(13)",
-      "14": "백화점식품(14)",
-      "15": "백화점점포PP(15)",
-      "21": "점포PP(21)",
-      "31": "자사창고(31)",
-      "32": "업체창고(32)",
-      "41": "협력업체(41)",
-      "42": "직배(42)"
+      "11": "매장집하",
+      "12": "PP입고",
+      "13": "센터입고",
+      "14": "백화점식품",
+      "15": "백화점점포PP",
+      "21": "점포PP",
+      "31": "자사창고",
+      "32": "업체창고",
+      "41": "협력업체",
+      "42": "브랜드직배"
     };
 
-    // BO 배송상품관리 등록 기준 센터입고브랜드(13) 및 직배(42) 대상 상품 목록
+    // BO 배송상품관리 등록 기준 센터입고브랜드 및 브랜드직배 대상 상품 목록
     const CENTER_BRAND_ITEMS = new Set([
       "0000000014144", "1000026540540", "1000027927249", "1000034540648", 
       "1000042113999", "1000060204379", "1000271553436", "1000333094186", 
@@ -816,63 +820,63 @@
       "1000852220153", "1000852256449", "1000854755497", "1000857275038"
     ]);
 
-    // 채널명 및 영업점/사이트번호/상품번호 기반 배송주체 자동 판별 (지능형 Fallback)
+    // 채널명 및 영업점/사이트번호/상품번호 기반 배송주체 자동 판별 (지능형 Fallback, 명칭만 반환)
     function getShppMainDisplay(channelName, storeInfo, ssgNo) {
       const ch = channelName || "";
       const st = storeInfo || "";
       const no = ssgNo || "";
 
-      // 1. 점포택배 및 장보기 채널 -> 점포PP(21)
+      // 1. 점포택배 및 장보기 채널 -> 점포PP
       if (ch.includes("점포택배") || ch.includes("장보기")) {
-        return "점포PP(21)";
+        return "점포PP";
       }
 
-      // 2. 백화점 개별 등록 상품 배송주체 (센터입고브랜드 13 / 직배 42)
+      // 2. 백화점 개별 등록 상품 배송주체 (센터입고 / 브랜드직배)
       if (CENTER_BRAND_ITEMS.has(no)) {
-        return "센터입고(13)";
+        return "센터입고";
       }
       if (DIRECT_BRAND_ITEMS.has(no)) {
-        return "직배(42)";
+        return "브랜드직배";
       }
 
       // 3. 백화점 점포 중 PP입고 운영 점포 (김해점 1017 등)
       if (st.includes("김해점") || st.includes("1017")) {
-        return "PP입고(12)";
+        return "PP입고";
       }
 
-      // 4. 신세계백화점 일반 점포 매장 출고 -> 매장집하(11)
+      // 4. 신세계백화점 일반 점포 매장 출고 -> 매장집하
       if (ch.includes("신세계백화점") || ch.includes("백화점")) {
-        return "매장집하(11)";
+        return "매장집하";
       }
 
-      // 3. 프리미엄아울렛 -> 협력업체(41)
+      // 5. 프리미엄아울렛 -> 협력업체
       if (ch.includes("아울렛")) {
-        return "협력업체(41)";
+        return "협력업체";
       }
 
-      // 4. 신세계몰 (직매입: 센터(13) / 온라인: 협력업체(41))
+      // 6. 신세계몰 (직매입: 센터입고 / 온라인: 협력업체)
       if (ch.includes("신세계몰")) {
-        if (ch.includes("직매입")) return "센터(13)";
-        return "협력업체(41)";
+        if (ch.includes("직매입")) return "센터입고";
+        return "협력업체";
       }
 
-      // 5. 물류센터 / 새벽배송 등 센터 출고 -> 센터(13)
+      // 7. 직매입 / 새벽배송 등 센터 출고 -> 센터입고
       if (ch.includes("직매입") || ch.includes("새벽배송")) {
-        return "센터(13)";
+        return "센터입고";
       }
 
-      // 6. 이마트몰 점포/사이트
+      // 8. 이마트몰 점포/사이트
       if (ch.includes("이마트몰")) {
-        if (st.includes("2551") || st.includes("NE.O")) return "센터(13)";
-        return "점포PP(21)";
+        if (st.includes("2551") || st.includes("NE.O")) return "센터입고";
+        return "점포PP";
       }
 
-      // 7. 영업점/사이트번호 기준 보조 판별
-      if (st.includes("점(") || /10[0-3][0-9]/.test(st)) return "매장집하(11)";
-      if (st.includes("6004") || st.includes("7008")) return "협력업체(41)";
-      if (st.includes("2551")) return "센터(13)";
+      // 9. 영업점/사이트번호 기준 보조 판별
+      if (st.includes("점(") || /10[0-3][0-9]/.test(st)) return "매장집하";
+      if (st.includes("6004") || st.includes("7008")) return "협력업체";
+      if (st.includes("2551")) return "센터입고";
 
-      return "매장집하(11)";
+      return "매장집하";
     }
 
     // BO 배송정보관리 API(listItemShippForPaging.ssg) 호출하여 배송주체(shppMainCd) 맵핑
@@ -1056,6 +1060,13 @@
             }
           });
 
+          // 3차: 제휴 URL 접속 유효성 검증 (토글 활성화 시)
+          const checkUrlToggle = document.getElementById("checkUrlHealthToggle");
+          if (checkUrlToggle && checkUrlToggle.checked) {
+            showLoading(true, `[${channelName}] 제휴 URL 접속 유효성 검증 중...`);
+            await verifyPartnerUrls(tempRows);
+          }
+
           fetchedData = tempRows;
         }
 
@@ -1151,6 +1162,14 @@
             r.shppMainCd = shppMap[r.ssgNo];
           }
         });
+
+        // 3차: 제휴 URL 접속 유효성 검증 (토글 활성화 시)
+        const checkUrlToggle = document.getElementById("checkUrlHealthToggle");
+        if (checkUrlToggle && checkUrlToggle.checked) {
+          showLoading(true, `[${partner.partner}] 제휴 URL 접속 유효성 검증 중...`);
+          await verifyPartnerUrls(fetchedData);
+        }
+
         renderTable();
       }
 
@@ -1253,7 +1272,22 @@
           renderTable();
         }
 
-        showToast(`전체 27개 채널 일괄 조회 완료!`);
+        // 3차: 제휴 URL 접속 유효성 검증 (Health Check, 토글 활성화 시)
+        const checkUrlToggle = document.getElementById("checkUrlHealthToggle");
+        const shouldCheckUrl = checkUrlToggle ? checkUrlToggle.checked : true;
+        let verifyResult = null;
+
+        if (shouldCheckUrl && fetchedData.length > 0) {
+          showLoading(true, `제휴상품 QA 페이지 접속 유효성 검증 중...`);
+          verifyResult = await verifyPartnerUrls(fetchedData);
+          renderTable();
+        }
+
+        if (verifyResult && verifyResult.total > 0) {
+          showToast(`전체 27개 채널 조회 & URL 검증 완료 (총 ${verifyResult.total}건 검사, 확인필요: ${verifyResult.errors}건)`);
+        } else {
+          showToast(`전체 27개 채널 일괄 조회 완료!`);
+        }
       } catch (err) {
         alert("일괄 조회 중 오류가 발생했습니다: " + err.message);
       } finally {
@@ -1327,8 +1361,8 @@
           dot: "bg-slate-500"
         };
       }
-      if (shpp.includes("42") || shpp.includes("직배")) {
-        // 42 직배: 로즈 / 핑크 톤 (브랜드 직접 배송)
+      if (shpp.includes("42") || shpp.includes("브랜드직배") || shpp.includes("직배")) {
+        // 브랜드직배 (기존 직배(42)): 로즈 / 핑크 톤 (브랜드 직접 배송)
         return {
           bg: "bg-rose-50 text-rose-900 border-rose-300 ring-1 ring-rose-500/10",
           dot: "bg-rose-500"
@@ -1411,6 +1445,94 @@
         return `https://store.kakao.com/ssgcomtest/products/${encodeURIComponent(allncoNo)}`;
       }
       return null;
+    }
+
+    // 제휴 QA 상품 페이지 URL 접속 유효성 검증 (Health Check)
+    async function verifyPartnerUrls(rows) {
+      if (!rows || rows.length === 0) return { total: 0, errors: 0 };
+      const targets = rows.filter(r => r.ssgNo && r.allncoNo && r.allncoNo !== "-" && r.allncoNo !== "확인필요");
+      if (targets.length === 0) return { total: 0, errors: 0 };
+
+      // 1순위: 로컬 프록시(/api/verify-urls) 호출 시도 (파이썬 서버 가동 시 SSL 만료 무시 및 정확한 상태코드 확인)
+      let backendSuccess = false;
+      try {
+        const payload = targets.map(r => ({
+          ssgNo: r.ssgNo,
+          partner: r.partner,
+          allncoNo: r.allncoNo,
+          url: getPartnerProductUrl(r.partner, r.allncoNo)
+        })).filter(x => x.url !== null);
+
+        if (payload.length > 0) {
+          const controller = new AbortController();
+          const tid = setTimeout(() => controller.abort(), 3000);
+          const resp = await fetch('/api/verify-urls', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: payload }),
+            signal: controller.signal
+          });
+          clearTimeout(tid);
+
+          if (resp.ok) {
+            const json = await resp.json();
+            if (json && json.results) {
+              backendSuccess = true;
+              let errCnt = 0;
+              rows.forEach(r => {
+                const res = json.results[r.ssgNo];
+                if (res && res.valid === false) {
+                  r.allncoNo = "확인필요";
+                  r.linkStatus = "error";
+                  errCnt++;
+                }
+              });
+              return { total: payload.length, errors: errCnt };
+            }
+          }
+        }
+      } catch (e) {
+        // 프록시 미가동 시 fallback 브라우저 프로브 진행
+      }
+
+      if (backendSuccess) return { total: targets.length, errors: 0 };
+
+      // 2순위: 브라우저 직접 fetch 프로브 (GitHub Pages 등 정적 호스팅 환경)
+      const urlItems = targets.map(r => ({
+        row: r,
+        url: getPartnerProductUrl(r.partner, r.allncoNo)
+      })).filter(x => x.url !== null);
+
+      if (urlItems.length === 0) return { total: 0, errors: 0 };
+
+      let errCnt = 0;
+      const BATCH_SIZE = 12;
+      for (let i = 0; i < urlItems.length; i += BATCH_SIZE) {
+        const batch = urlItems.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(async item => {
+          let testUrl = item.url;
+          // GitHub Pages(HTTPS)에서 HTTP 요청 시 Mixed Content 차단 방지용 안전 프로브
+          if (location.protocol === 'https:' && testUrl.startsWith('http://')) {
+            testUrl = testUrl.replace('http://', 'https://');
+          }
+
+          const controller = new AbortController();
+          const tid = setTimeout(() => controller.abort(), 2500);
+          try {
+            await fetch(testUrl, { mode: 'no-cors', signal: controller.signal });
+            clearTimeout(tid);
+            // 정상 접속 성공
+          } catch (err) {
+            clearTimeout(tid);
+            // 접속 불가, HOST 미설정, 타임아웃, 연결 실패 등
+            item.row.allncoNo = "확인필요";
+            item.row.linkStatus = "error";
+            errCnt++;
+          }
+        }));
+      }
+
+      return { total: urlItems.length, errors: errCnt };
     }
 
     function renderAllncoCell(row) {
