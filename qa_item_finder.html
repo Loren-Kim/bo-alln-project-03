@@ -1388,6 +1388,56 @@
       });
     }
 
+    // 제휴사별 QA 상품 상세 페이지 URL 생성
+    function getPartnerProductUrl(partner, allncoNo) {
+      if (!allncoNo || allncoNo === "-" || allncoNo === "확인필요") return null;
+      const p = (partner || "").trim();
+      if (p === "G마켓" || p.includes("지마켓") || p.includes("G마켓")) {
+        return `https://item-dev.gmarket.co.kr/detailview/item.asp?goodscode=${encodeURIComponent(allncoNo)}`;
+      }
+      if (p === "옥션" || p.includes("옥션")) {
+        return `http://itempage3-dev.auction.co.kr/detailview.aspx?itemno=${encodeURIComponent(allncoNo)}`;
+      }
+      if (p.includes("11번가")) {
+        return `https://www.11st.co.kr/products/${encodeURIComponent(allncoNo)}`;
+      }
+      if (p.includes("라이브쇼핑")) {
+        return `https://www-dev.shinsegaetvshopping.com/display/detail/${encodeURIComponent(allncoNo)}`;
+      }
+      if (p.includes("W컨셉") || p.includes("Wconcept")) {
+        return `https://dev-www.wconcept.co.kr/Product/${encodeURIComponent(allncoNo)}`;
+      }
+      if (p.includes("카카오")) {
+        return `https://store.kakao.com/ssgcomtest/products/${encodeURIComponent(allncoNo)}`;
+      }
+      return null;
+    }
+
+    function renderAllncoCell(row) {
+      const hasItem = row.ssgNo !== null;
+      const allncoNo = row.allncoNo;
+      if (!hasItem || !allncoNo || allncoNo === "-") {
+        return `<span class="font-mono text-xs text-slate-400">-</span>`;
+      }
+      if (allncoNo === "확인필요" || row.linkStatus === "error") {
+        return `<span class="inline-flex items-center gap-1 font-mono text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded" title="제휴 매핑 관계 확인 필요 (접속 불가 또는 매핑 해제)"><i class="fa-solid fa-triangle-exclamation text-[11px]"></i> 확인필요</span>`;
+      }
+
+      const url = getPartnerProductUrl(row.partner, allncoNo);
+      if (url) {
+        return `
+          <a href="${url}" target="_blank" rel="noopener noreferrer" 
+             class="inline-flex items-center gap-1.5 font-mono font-semibold text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 hover:text-indigo-900 px-2 py-0.5 rounded border border-indigo-200 transition-all group"
+             title="클릭하여 제휴사 QA 상품 페이지로 이동 (${url})">
+            <span>${allncoNo}</span>
+            <i class="fa-solid fa-arrow-up-right-from-square text-[10px] text-indigo-400 group-hover:text-indigo-600"></i>
+          </a>
+        `;
+      } else {
+        return `<span class="font-mono font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200" title="해당 제휴사는 상품 URL이 지원되지 않습니다.">${allncoNo}</span>`;
+      }
+    }
+
     function renderTable() {
       const q = document.getElementById("tableFilter").value.trim().toLowerCase();
       const hasItemsOnly = document.getElementById("filterHasItemsOnly").checked;
@@ -1474,7 +1524,7 @@
               ${hasItem ? `<span class="font-mono font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">${row.ssgNo}</span>` : '<span class="text-xs text-slate-400 italic">연동 상품 없음 (0건)</span>'}
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
-              ${hasAllnco ? `<span class="font-mono font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">${row.allncoNo}</span>` : `<span class="font-mono text-xs text-slate-400">-</span>`}
+              ${renderAllncoCell(row)}
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
               ${hasShpp ? renderShppBadge(row.shppMainCd) : `<span class="text-xs text-slate-400 font-mono">-</span>`}
@@ -1487,10 +1537,15 @@
                   <button onclick="copySingle('${row.ssgNo}', 'SSG상품번호')" title="SSG상품번호 복사" class="p-1 px-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition-colors">
                     <i class="fa-regular fa-copy"></i>
                   </button>
-                  ${hasAllnco ? `
+                  ${hasAllnco && row.allncoNo !== '확인필요' ? `
                     <button onclick="copySingle('${row.allncoNo}', '제휴상품번호')" title="제휴상품번호 복사" class="p-1 px-1.5 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded transition-colors">
-                      <i class="fa-solid fa-link text-[10px]"></i>
+                      <i class="fa-regular fa-copy text-indigo-600"></i>
                     </button>
+                    ${getPartnerProductUrl(row.partner, row.allncoNo) ? `
+                      <a href="${getPartnerProductUrl(row.partner, row.allncoNo)}" target="_blank" rel="noopener noreferrer" title="제휴사 상품 페이지 새 창 열기" class="p-1 px-1.5 text-xs bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-500 rounded transition-colors inline-flex items-center justify-center">
+                        <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                      </a>
+                    ` : ''}
                   ` : ''}
                 </div>
               ` : '-'}

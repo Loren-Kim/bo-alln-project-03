@@ -538,6 +538,25 @@ def save_to_csv(rows, filename):
             ])
     print(f"[SUCCESS] CSV 파일 저장 완료: {filename} (총 {len(rows)}행, SSG상품번호 & 제휴상품번호 텍스트 보존)")
 
+def get_partner_product_url(partner, allnco_no):
+    """제휴사별 QA 상품 상세 페이지 URL 생성"""
+    if not allnco_no or allnco_no in ["-", "확인필요"]:
+        return None
+    p = str(partner or "").strip()
+    if p in ["G마켓", "지마켓"] or "G마켓" in p or "지마켓" in p:
+        return f"https://item-dev.gmarket.co.kr/detailview/item.asp?goodscode={urllib.parse.quote(str(allnco_no))}"
+    if p == "옥션" or "옥션" in p:
+        return f"http://itempage3-dev.auction.co.kr/detailview.aspx?itemno={urllib.parse.quote(str(allnco_no))}"
+    if "11번가" in p:
+        return f"https://www.11st.co.kr/products/{urllib.parse.quote(str(allnco_no))}"
+    if "라이브쇼핑" in p:
+        return f"https://www-dev.shinsegaetvshopping.com/display/detail/{urllib.parse.quote(str(allnco_no))}"
+    if "W컨셉" in p or "Wconcept" in p:
+        return f"https://dev-www.wconcept.co.kr/Product/{urllib.parse.quote(str(allnco_no))}"
+    if "카카오" in p:
+        return f"https://store.kakao.com/ssgcomtest/products/{urllib.parse.quote(str(allnco_no))}"
+    return None
+
 def save_to_excel(rows, filename):
     if not HAS_OPENPYXL:
         print("[WARN] openpyxl 라이브러리가 없어 Excel(.xlsx) 생성을 건너뜁니다.")
@@ -601,7 +620,14 @@ def save_to_excel(rows, filename):
             cell.number_format = '@'
             cell.font = body_font
             cell.border = border_thin
-            if c_idx == 6:
+            if c_idx == 5:
+                allnco_no = str(val)
+                partner = r["채널명"]
+                url = get_partner_product_url(partner, allnco_no)
+                if url:
+                    cell.hyperlink = url
+                    cell.font = Font(name="맑은 고딕", size=10, color="1D4ED8", underline="single")
+            elif c_idx == 6:
                 shpp_text = str(val)
                 for code in ["11", "12", "13", "21", "41", "42"]:
                     if code in shpp_text:
