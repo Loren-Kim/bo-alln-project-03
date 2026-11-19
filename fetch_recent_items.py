@@ -783,6 +783,11 @@ def run_query(target_channels, save_csv=None, save_xlsx=None, copy_to_clipboard=
                     err_cnt += 1
             print(f"[INFO] URL 검증 완료 (총 {len(items_to_verify)}건 검사, 비정상/접속불가: {err_cnt}건 -> '확인필요' 마킹)")
 
+    if csv_rows:
+        # 정렬: 1순위 제휴상품번호 유효 여부 Y 우선, 2순위 마지막연동일자 최신순 (Timsort 안정 정렬)
+        csv_rows.sort(key=lambda r: r.get("마지막연동일자", ""), reverse=True)
+        csv_rows.sort(key=lambda r: 0 if (r.get("제휴상품번호") and r.get("제휴상품번호") not in ["-", "확인필요", "null", ""]) else 1)
+
     if save_csv:
         if not csv_rows:
             print("[WARN] 조회된 상품이 없어 CSV를 생성하지 않았습니다.")
