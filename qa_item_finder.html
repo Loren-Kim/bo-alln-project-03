@@ -1,0 +1,1575 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>[QA] 제휴 연동 상품 & 제휴상품번호 조회</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    body { font-family: 'Pretendard', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen relative">
+  <!-- 드래그앤드롭 전체화면 오버레이 -->
+  <div id="dragDropOverlay" class="fixed inset-0 z-50 bg-blue-600/20 backdrop-blur-sm border-4 border-dashed border-blue-500 rounded-2xl m-4 pointer-events-none hidden flex-col items-center justify-center gap-3 transition-all">
+    <div class="w-16 h-16 rounded-full bg-white shadow-xl flex items-center justify-center text-blue-600 text-3xl animate-bounce">
+      <i class="fa-solid fa-cloud-arrow-up"></i>
+    </div>
+    <div class="text-center bg-white px-6 py-3.5 rounded-xl shadow-lg border border-blue-100">
+      <p class="text-base font-bold text-slate-800">선연동 CSV 파일을 여기에 놓으세요</p>
+      <p class="text-xs text-slate-500 mt-0.5">다운로드받은 선연동 CSV 파일들을 드롭하면 제휴상품번호가 즉시 매핑됩니다.</p>
+    </div>
+  </div>
+  <div class="max-w-[1720px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <header class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between pb-6 border-b border-slate-200 gap-4">
+      <div>
+        <div class="flex items-center gap-3">
+          <span class="px-2.5 py-1 text-xs font-bold bg-amber-500/10 text-amber-600 rounded-md border border-amber-200">QA Environment</span>
+          <h1 class="text-2xl font-bold text-slate-900">[QA] 제휴 연동 상품 & 제휴상품번호 조회</h1>
+        </div>
+        <p class="text-sm text-slate-500 mt-1">100일 이내 재고 있는 연동 상품과 각 제휴사별 '제휴상품번호'를 실시간으로 조회합니다.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btnFetchAll" onclick="fetchAllChannels()" class="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm transition-all shadow-sm shadow-blue-500/20 active:scale-95">
+          <i class="fa-solid fa-cloud-arrow-down"></i>
+          <span>전체 채널 일괄 조회 (27개)</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Grid: 좌측 컨트롤 / 우측 결과 -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- Left Panel: 채널 선택 및 필터 (3 cols) -->
+      <div class="lg:col-span-3 space-y-4">
+        <!-- 제휴사 탭 -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
+          <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <i class="fa-solid fa-store text-blue-500"></i> 채널명(제휴사) 선택
+          </h2>
+          <div class="grid grid-cols-3 gap-2" id="partnerTabs">
+            <!-- JS 동적 생성 -->
+          </div>
+        </div>
+
+        <!-- 선택된 제휴사의 하위 채널 목록 -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-list-check text-blue-500"></i>
+              <span id="currentPartnerTitle">서비스명 목록</span>
+            </h2>
+            <button onclick="fetchCurrentPartnerChannels()" class="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
+              <i class="fa-solid fa-bolt"></i> 이 제휴사만 조회
+            </button>
+          </div>
+          <div id="channelList" class="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+            <!-- JS 동적 생성 -->
+          </div>
+        </div>
+
+        <!-- 직접 CHNL_ID 입력 조회 -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
+          <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <i class="fa-solid fa-magnifying-glass text-blue-500"></i> 채널ID 직접 입력 조회
+          </h2>
+          <div class="flex gap-2">
+            <input type="text" id="customChnlId" placeholder="예: 0000018820" class="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono">
+            <button onclick="fetchCustomChannel()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm rounded-lg font-medium transition-all">
+              조회
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Panel: 조회 결과 및 추출 (9 cols) -->
+      <div class="lg:col-span-9 space-y-4">
+        <!-- 상태 요약 바 -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm flex flex-wrap items-center justify-between gap-4">
+          <div class="flex items-center gap-4 text-sm flex-wrap">
+            <div>
+              <span class="text-[11px] text-slate-400 block font-medium">현재 조회 기준</span>
+              <span id="currentScopeBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                <i class="fa-solid fa-crosshairs text-blue-500"></i>
+                <span id="currentScopeText">조회 대기 (좌측 또는 상단 버튼 클릭)</span>
+              </span>
+            </div>
+            <div class="h-6 w-px bg-slate-200 hidden sm:block"></div>
+            <div>
+              <span class="text-[11px] text-slate-400 block font-medium">조회된 채널</span>
+              <span id="statChannelCount" class="font-bold text-slate-900 text-sm">0개</span>
+            </div>
+            <div class="h-6 w-px bg-slate-200 hidden sm:block"></div>
+            <div>
+              <span class="text-[11px] text-slate-400 block font-medium">조회된 상품 수</span>
+              <span id="statItemCount" class="font-bold text-blue-600 text-sm">0건</span>
+            </div>
+            <div id="loadingIndicator" class="hidden items-center gap-2 text-blue-600 font-medium">
+              <i class="fa-solid fa-circle-notch fa-spin"></i>
+              <span id="loadingText" class="text-xs">조회 중...</span>
+            </div>
+          </div>
+
+          <!-- 복사 및 내보내기 액션 -->
+          <div class="flex items-center gap-2 flex-wrap">
+            <!-- 선연동 CSV 불러오기 버튼 -->
+            <input type="file" id="csvFileInput" accept=".csv" multiple onchange="handleCsvFileInput(event)" class="hidden">
+            <button onclick="document.getElementById('csvFileInput').click()" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-semibold transition-all shadow-sm" title="선연동 다운로드 CSV 파일을 선택하거나 브라우저 화면에 드래그&드롭하면 제휴상품번호가 즉시 매핑됩니다.">
+              <i class="fa-solid fa-file-arrow-up text-amber-600"></i>
+              <span>선연동 CSV 불러오기</span>
+            </button>
+            <div id="localMapBadge" class="hidden items-center gap-1.5 px-2 py-1 bg-amber-100/90 text-amber-900 rounded-md text-[11px] font-medium border border-amber-300">
+              <i class="fa-solid fa-circle-check text-amber-600"></i>
+              <span id="localMapCount">0건 추가됨</span>
+              <button onclick="clearLocalAllncoMap()" class="ml-1 text-slate-400 hover:text-red-600 font-bold" title="로컬 추가 매핑 초기화">×</button>
+            </div>
+
+            <div class="h-4 w-px bg-slate-200 hidden sm:block"></div>
+
+            <button onclick="copyIds('ssg', 'newline')" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all">
+              <i class="fa-regular fa-copy text-blue-600"></i>
+              <span>SSG상품번호 복사</span>
+            </button>
+            <button onclick="copyIds('allnco', 'newline')" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold transition-all">
+              <i class="fa-regular fa-copy text-indigo-600"></i>
+              <span>제휴상품번호 복사</span>
+            </button>
+            <button onclick="exportCSV()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-all shadow-sm shadow-emerald-500/20">
+              <i class="fa-solid fa-file-excel"></i>
+              <span>CSV 다운로드 (지정양식)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 검색 필터 -->
+        <div class="flex items-center gap-3">
+          <div class="relative flex-1">
+            <i class="fa-solid fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+            <input type="text" id="tableFilter" oninput="filterResultsTable()" placeholder="결과 필터링 (채널명, 서비스명, SSG상품번호, 제휴상품번호 검색)" class="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <label class="flex items-center gap-2 text-xs text-slate-600 select-none cursor-pointer">
+            <input type="checkbox" id="filterHasItemsOnly" onchange="filterResultsTable()" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+            <span>상품 있는 채널만 보기</span>
+          </label>
+        </div>
+
+        <!-- 결과 테이블 -->
+        <div class="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+          <div class="max-h-[620px] overflow-y-auto overflow-x-auto">
+            <table class="w-full text-left text-sm border-collapse min-w-[1050px]">
+              <thead class="bg-slate-50 text-slate-600 text-xs uppercase font-semibold sticky top-0 z-10 border-b border-slate-200">
+                <tr>
+                  <th onclick="handleSort('partner')" class="px-4 py-3.5 w-[120px] min-w-[120px] whitespace-nowrap cursor-pointer select-none hover:bg-slate-100 transition-colors group" title="클릭하여 정렬">
+                    <div class="flex items-center justify-between">
+                      <span>채널명</span>
+                      <i id="sort-icon-partner" class="fa-solid fa-sort text-slate-300 text-xs group-hover:text-slate-500"></i>
+                    </div>
+                  </th>
+                  <th onclick="handleSort('channelName')" class="px-4 py-3.5 w-[180px] min-w-[180px] whitespace-nowrap cursor-pointer select-none hover:bg-slate-100 transition-colors group" title="클릭하여 정렬">
+                    <div class="flex items-center justify-between">
+                      <span>서비스명</span>
+                      <i id="sort-icon-channelName" class="fa-solid fa-sort text-slate-300 text-xs group-hover:text-slate-500"></i>
+                    </div>
+                  </th>
+                  <th onclick="handleSort('ssgNo')" class="px-4 py-3.5 w-[170px] min-w-[170px] whitespace-nowrap cursor-pointer select-none hover:bg-slate-100 transition-colors group" title="클릭하여 정렬">
+                    <div class="flex items-center justify-between">
+                      <span>SSG상품번호</span>
+                      <i id="sort-icon-ssgNo" class="fa-solid fa-sort text-slate-300 text-xs group-hover:text-slate-500"></i>
+                    </div>
+                  </th>
+                  <th onclick="handleSort('allncoNo')" class="px-4 py-3.5 w-[160px] min-w-[160px] whitespace-nowrap cursor-pointer select-none hover:bg-slate-100 transition-colors group" title="클릭하여 정렬">
+                    <div class="flex items-center justify-between">
+                      <span>제휴상품번호</span>
+                      <i id="sort-icon-allncoNo" class="fa-solid fa-sort text-slate-300 text-xs group-hover:text-slate-500"></i>
+                    </div>
+                  </th>
+                  <th onclick="handleSort('shppMainCd')" class="px-4 py-3.5 w-[140px] min-w-[140px] whitespace-nowrap cursor-pointer select-none hover:bg-slate-100 transition-colors group" title="클릭하여 정렬">
+                    <div class="flex items-center justify-between">
+                      <span>배송주체</span>
+                      <i id="sort-icon-shppMainCd" class="fa-solid fa-sort text-slate-300 text-xs group-hover:text-slate-500"></i>
+                    </div>
+                  </th>
+                  <th onclick="handleSort('storeInfo')" class="px-4 py-3.5 w-[190px] min-w-[190px] whitespace-nowrap cursor-pointer select-none hover:bg-slate-100 transition-colors group" title="클릭하여 정렬">
+                    <div class="flex items-center justify-between">
+                      <span>영업점/사이트번호</span>
+                      <i id="sort-icon-storeInfo" class="fa-solid fa-sort text-slate-300 text-xs group-hover:text-slate-500"></i>
+                    </div>
+                  </th>
+                  <th onclick="handleSort('modDts')" class="px-4 py-3.5 w-[180px] min-w-[180px] whitespace-nowrap cursor-pointer select-none hover:bg-slate-100 transition-colors group" title="클릭하여 정렬">
+                    <div class="flex items-center justify-between">
+                      <span>마지막연동일자</span>
+                      <i id="sort-icon-modDts" class="fa-solid fa-sort text-slate-300 text-xs group-hover:text-slate-500"></i>
+                    </div>
+                  </th>
+                  <th class="px-3 py-3.5 w-[90px] min-w-[90px] text-center whitespace-nowrap">복사</th>
+                </tr>
+              </thead>
+              <tbody id="resultsTableBody" class="divide-y divide-slate-100">
+                <tr>
+                  <td colspan="8" class="px-4 py-16 text-center text-slate-400">
+                    <div class="flex flex-col items-center justify-center gap-2">
+                      <i class="fa-solid fa-box-open text-3xl text-slate-300"></i>
+                      <p>좌측 채널 또는 상단 버튼을 클릭하면 해당 조건의 상품만 포커스되어 조회됩니다.</p>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Toast Message -->
+  <div id="toast" class="fixed bottom-6 right-6 bg-slate-900 text-white px-4 py-3 rounded-lg shadow-xl text-sm font-medium transform transition-all duration-300 translate-y-16 opacity-0 flex items-center gap-2 z-50">
+    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+    <span id="toastMsg">복사되었습니다!</span>
+  </div>
+
+  <script>
+    const STORE_SITE_MAP = {
+      // 영업점 번호
+      "1002": "본점(1002)",
+      "1003": "타임스퀘어점 리빙관(1003)",
+      "1004": "강남점(1004)",
+      "1006": "신세계 사우스시티점(1006)",
+      "1007": "의정부점(1007)",
+      "1008": "광주신세계(1008)",
+      "1009": "센텀시티점(1009)",
+      "1010": "마산점(1010)",
+      "1011": "천안아산점(1011)",
+      "1013": "타임스퀘어점 패션관(1013)",
+      "1017": "김해점(1017)",
+      "1018": "하남점(1018)",
+      "1019": "대구신세계(1019)",
+      "1020": "시코르강남역점(1020)",
+      "1021": "팩토리스토어 강남점(1021)",
+      "1022": "팩토리스토어 고양점(1022)",
+      "1023": "온라인점 (S파트너스)(1023)",
+      "1024": "대전신세계 (ART & SCIENCE)(1024)",
+      "1026": "팩토리스토어 타임스퀘어점(1026)",
+      "1027": "시코르닷컴(C3)(1027)",
+      "1029": "신세계푸드마켓 도곡점(1029)",
+      "1030": "신세계백화점 화장품 온라인점(배스앤바디웍스 온라인점)(1030)",
+      "2551": "NE.O.004(2551)",
+      // 사이트 번호
+      "6001": "이마트몰(6001)",
+      "6002": "트레이더스(6002)",
+      "6004": "신세계몰(6004)",
+      "7008": "아울렛(7008)"
+    };
+
+    const CHANNEL_DATA = [
+      {
+        partner: "G마켓",
+        mainChnlId: "0000015780",
+        channels: [
+          { name: "신세계몰 (온라인)", chnlId: "0000015781" },
+          { name: "신세계몰 (직매입)", chnlId: "0000016345" },
+          { name: "신세계백화점", chnlId: "0000015782" },
+          { name: "프리미엄아울렛", chnlId: "0000017105" },
+          { name: "점포택배", chnlId: "0000018380" },
+          { name: "장보기 (이마트몰/새벽배송)", chnlId: "0000018820" },
+          { name: "장보기 (트레이더스)", chnlId: "0000023802" }
+        ]
+      },
+      {
+        partner: "옥션",
+        mainChnlId: "0000015777",
+        channels: [
+          { name: "신세계몰 (온라인)", chnlId: "0000015778" },
+          { name: "신세계몰 (직매입)", chnlId: "0000016346" },
+          { name: "신세계백화점", chnlId: "0000015779" },
+          { name: "프리미엄아울렛", chnlId: "0000017106" },
+          { name: "점포택배", chnlId: "0000018381" }
+        ]
+      },
+      {
+        partner: "라이브쇼핑",
+        mainChnlId: "0000019622",
+        channels: [
+          { name: "신세계몰", chnlId: "0000019624" },
+          { name: "신세계백화점", chnlId: "0000019623" }
+        ]
+      },
+      {
+        partner: "11번가",
+        mainChnlId: "0000015958",
+        channels: [
+          { name: "신세계몰", chnlId: "0000015959" },
+          { name: "신세계백화점", chnlId: "0000015960" },
+          { name: "프리미엄아울렛", chnlId: "0000017104" },
+          { name: "장보기 (이마트몰/새벽배송)", chnlId: "0000020717" }
+        ]
+      },
+      {
+        partner: "네이버",
+        mainChnlId: "0000016082",
+        channels: [
+          { name: "신세계백화점", chnlId: "0000016083" },
+          { name: "점포택배", chnlId: "0000018560" },
+          { name: "장보기 (이마트몰)", chnlId: "0000018200" },
+          { name: "장보기 (새벽배송)", chnlId: "0000018201" },
+          { name: "장보기 (트레이더스)", chnlId: "0000018202" }
+        ]
+      },
+      {
+        partner: "W컨셉",
+        mainChnlId: "0000019089",
+        channels: [
+          { name: "신세계몰", chnlId: "0000019091" },
+          { name: "신세계백화점", chnlId: "0000019090" }
+        ]
+      },
+      {
+        partner: "카카오",
+        mainChnlId: "0000020537",
+        channels: [
+          { name: "신세계백화점", chnlId: "0000020540" }
+        ]
+      },
+      {
+        partner: "CTK",
+        mainChnlId: "0000021953",
+        channels: [
+          { name: "신세계백화점", chnlId: "0000021954" }
+        ]
+      }
+    ];
+
+    let currentPartnerIdx = 0;
+    let fetchedData = []; // { partner, channelName, chnlId, ssgNo, allncoNo, storeInfo, rawId, modDts }
+
+    function parseLnkgItemId(rawId) {
+      if (!rawId || rawId.length <= 4) return { ssgNo: rawId || "", storeInfo: "-" };
+      const ssgNo = rawId.slice(0, -4);
+      const suffix = rawId.slice(-4);
+      const storeInfo = STORE_SITE_MAP[suffix] || suffix;
+      return { ssgNo, storeInfo };
+    }
+
+    function initTabs() {
+      const tabsEl = document.getElementById("partnerTabs");
+      tabsEl.innerHTML = CHANNEL_DATA.map((p, idx) => `
+        <button onclick="selectPartner(${idx})" id="tab-btn-${idx}" class="p-2 text-xs font-semibold rounded-lg border text-center transition-all ${idx === 0 ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}">
+          ${p.partner}
+          <span class="block text-[10px] text-slate-400 font-mono mt-0.5">${p.channels.length}개</span>
+        </button>
+      `).join("");
+      selectPartner(0);
+    }
+
+    function selectPartner(idx) {
+      currentPartnerIdx = idx;
+      CHANNEL_DATA.forEach((_, i) => {
+        const btn = document.getElementById(`tab-btn-${i}`);
+        if (i === idx) {
+          btn.className = "p-2 text-xs font-semibold rounded-lg border text-center transition-all bg-blue-50 border-blue-200 text-blue-700 shadow-sm";
+        } else {
+          btn.className = "p-2 text-xs font-semibold rounded-lg border text-center transition-all bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100";
+        }
+      });
+      const partner = CHANNEL_DATA[idx];
+      document.getElementById("currentPartnerTitle").textContent = `${partner.partner} 서비스명`;
+
+      const listEl = document.getElementById("channelList");
+      listEl.innerHTML = partner.channels.map(ch => `
+        <div id="card-${ch.chnlId}" class="flex items-center justify-between p-2.5 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50/30 transition-all text-xs group">
+          <div>
+            <div class="font-medium text-slate-800">${ch.name}</div>
+            <div class="text-[11px] text-slate-400 font-mono">${ch.chnlId}</div>
+          </div>
+          <button onclick="fetchSingleChannel('${partner.partner}', '${ch.name}', '${ch.chnlId}')" class="px-2.5 py-1 bg-white group-hover:bg-blue-600 group-hover:text-white border border-slate-200 group-hover:border-blue-600 text-slate-700 rounded text-xs font-semibold transition-all">
+            조회
+          </button>
+        </div>
+      `).join("");
+    }
+
+    function updateScopeBadge(text, kind = 'channel') {
+      const txtEl = document.getElementById("currentScopeText");
+      const badgeEl = document.getElementById("currentScopeBadge");
+      txtEl.textContent = text;
+
+      if (kind === 'all') {
+        badgeEl.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-blue-600 text-white shadow-sm shadow-blue-500/20";
+        badgeEl.querySelector("i").className = "fa-solid fa-earth-americas text-white";
+      } else if (kind === 'partner') {
+        badgeEl.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200";
+        badgeEl.querySelector("i").className = "fa-solid fa-store text-indigo-500";
+      } else {
+        badgeEl.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200";
+        badgeEl.querySelector("i").className = "fa-solid fa-crosshairs text-amber-600";
+      }
+    }
+
+    function highlightChannelCard(activeChnlId) {
+      const partner = CHANNEL_DATA[currentPartnerIdx];
+      partner.channels.forEach(ch => {
+        const el = document.getElementById(`card-${ch.chnlId}`);
+        if (!el) return;
+        if (activeChnlId === 'all') {
+          el.className = "flex items-center justify-between p-2.5 rounded-lg border border-indigo-300 bg-indigo-50/40 text-xs transition-all";
+        } else if (ch.chnlId === activeChnlId) {
+          el.className = "flex items-center justify-between p-2.5 rounded-lg border-2 border-blue-500 bg-blue-50/60 shadow-sm text-xs transition-all ring-2 ring-blue-500/10";
+        } else {
+          el.className = "flex items-center justify-between p-2.5 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50/30 transition-all text-xs group";
+        }
+      });
+    }
+
+    async function callApi(chnlId) {
+      const url = `https://qa-cloudapi.ssgadm.com/alln/market-collect-oracle/alliance-mcp/recent-linkage-items?chnlId=${chnlId}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    }
+
+    // 채널명 -> 채널ID 매핑 (파일명 또는 헤더 주석 파싱용)
+    const CSV_CHANNEL_NAME_TO_ID = {
+      "지마켓(백화점)": "0000015782",
+      "옥션(백화점)": "0000015779",
+      "지마켓(신세계몰)": "0000015781",
+      "옥션(신세계몰)": "0000015778",
+      "프리미엄아울렛(지마켓)": "0000017105",
+      "프리미엄아울렛(옥션)": "0000017106",
+      "11번가(신세계몰)": "0000015959",
+      "11번가(신세계백화점)": "0000015960",
+      "11번가(백화점)": "0000015960",
+      "11번가(프리미엄아울렛)": "0000017104",
+      "11번가(아울렛)": "0000017104",
+      "W컨셉(신세계백화점)": "0000019090",
+      "W컨셉(백화점)": "0000019090",
+      "W컨셉(신세계몰)": "0000019091",
+      "W컨셉(몰)": "0000019091",
+      "라이브쇼핑(백화점)": "0000019623",
+      "라이브쇼핑(몰)": "0000019624",
+      "현대Hmall": "0000016083",
+      "현대Hmall(전문관)": "0000018200",
+      "카카오(선물하기)": "0000018380",
+      "카카오(백화점)": "0000018820",
+      "카카오선물하기(몰)": "0000020717",
+      "롯데ON(백화점)": "0000020540",
+      "티몬(신세계몰)": "0000021954",
+      "당근(백화점)": "0000023802"
+    };
+
+    // 로컬 스토리지 선연동 캐시 관리
+    let LOCAL_ALLNCO_MAP = {};
+
+    function loadLocalAllncoMap() {
+      try {
+        const raw = localStorage.getItem("LOCAL_ALLNCO_MAP");
+        if (raw) LOCAL_ALLNCO_MAP = JSON.parse(raw);
+      } catch (e) {
+        LOCAL_ALLNCO_MAP = {};
+      }
+      updateLocalMapBadge();
+    }
+
+    function saveLocalAllncoMap() {
+      try {
+        localStorage.setItem("LOCAL_ALLNCO_MAP", JSON.stringify(LOCAL_ALLNCO_MAP));
+      } catch (e) {}
+      updateLocalMapBadge();
+    }
+
+    function clearLocalAllncoMap() {
+      if (confirm("브라우저에 추가된 선연동 매핑 데이터를 초기화하시겠습니까?\n(기본 내장 데이터는 그대로 유지됩니다)")) {
+        localStorage.removeItem("LOCAL_ALLNCO_MAP");
+        LOCAL_ALLNCO_MAP = {};
+        updateLocalMapBadge();
+        if (fetchedData && fetchedData.length > 0) {
+          fetchedData.forEach(r => {
+            r.allncoNo = resolveAllncoNo(r.chnlId, r.ssgNo, r.rawId);
+          });
+          renderTable();
+        }
+        showToast("로컬 추가 매핑이 초기화되었습니다.");
+      }
+    }
+
+    function updateLocalMapBadge() {
+      const count = Object.keys(LOCAL_ALLNCO_MAP).length;
+      const badgeEl = document.getElementById("localMapBadge");
+      const badgeCountEl = document.getElementById("localMapCount");
+      if (badgeEl && badgeCountEl) {
+        if (count > 0) {
+          badgeEl.classList.remove("hidden");
+          badgeEl.classList.add("inline-flex");
+          badgeCountEl.textContent = `${count}건 로컬 매핑`;
+        } else {
+          badgeEl.classList.add("hidden");
+          badgeEl.classList.remove("inline-flex");
+        }
+      }
+    }
+
+    // 제휴상품번호 단일 결정기 (1. BO실시간 -> 2. 브라우저로컬 -> 3. 내장캐시)
+    function resolveAllncoNo(chnlId, ssgNo, rawId, boMap) {
+      if (boMap) {
+        if (rawId && boMap[rawId] && boMap[rawId] !== "-") return boMap[rawId];
+        if (ssgNo && boMap[ssgNo] && boMap[ssgNo] !== "-") return boMap[ssgNo];
+      }
+      const chnlKey = (chnlId || "") + "_" + (ssgNo || "");
+      if (LOCAL_ALLNCO_MAP[chnlKey]) return LOCAL_ALLNCO_MAP[chnlKey];
+      if (ssgNo && LOCAL_ALLNCO_MAP[ssgNo]) return LOCAL_ALLNCO_MAP[ssgNo];
+      if (BUILTIN_ALLNCO_MAP[chnlKey]) return BUILTIN_ALLNCO_MAP[chnlKey];
+      if (ssgNo && BUILTIN_ALLNCO_MAP[ssgNo]) return BUILTIN_ALLNCO_MAP[ssgNo];
+      return "-";
+    }
+
+    // 파일 업로드 및 드래그앤드롭 이벤트 핸들러
+    function handleCsvFileInput(event) {
+      const files = event.target.files;
+      if (files && files.length > 0) {
+        handleCsvFiles(files);
+      }
+      event.target.value = ""; // 재선택 가능하도록 초기화
+    }
+
+    async function handleCsvFiles(files) {
+      if (!files || files.length === 0) return;
+      let totalAdded = 0;
+      let processedFiles = 0;
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.name.toLowerCase().endsWith('.csv')) continue;
+        try {
+          const text = await readFileAsText(file);
+          const added = parseAndMergePreLinkageCsv(text, file.name);
+          totalAdded += added;
+          processedFiles++;
+        } catch (err) {
+          console.error("CSV 파싱 에러:", file.name, err);
+        }
+      }
+
+      if (totalAdded > 0) {
+        saveLocalAllncoMap();
+        if (fetchedData && fetchedData.length > 0) {
+          fetchedData.forEach(r => {
+            r.allncoNo = resolveAllncoNo(r.chnlId, r.ssgNo, r.rawId);
+          });
+          renderTable();
+        }
+        showToast(`선연동 CSV (${processedFiles}개 파일)에서 ${totalAdded}건의 제휴상품번호를 즉시 반영했습니다!`);
+      } else {
+        showToast(`선연동 CSV 파일에서 추가할 유효한 제휴상품번호를 찾지 못했거나 이미 반영되어 있습니다.`);
+      }
+    }
+
+    function readFileAsText(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const buffer = e.target.result;
+          let text = "";
+          try {
+            const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+            text = utf8Decoder.decode(buffer);
+          } catch(err) {
+            const euckrDecoder = new TextDecoder('euc-kr');
+            text = euckrDecoder.decode(buffer);
+          }
+          resolve(text);
+        };
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    function parseAndMergePreLinkageCsv(csvText, filename) {
+      let added = 0;
+      const lines = csvText.split(/\r?\n/);
+      if (lines.length === 0) return 0;
+
+      let detectedChnlId = "";
+      for (const [chnlName, chnlId] of Object.entries(CSV_CHANNEL_NAME_TO_ID)) {
+        if (lines[0] && lines[0].includes(chnlName)) {
+          detectedChnlId = chnlId;
+          break;
+        }
+        if (filename && filename.includes(chnlName)) {
+          detectedChnlId = chnlId;
+          break;
+        }
+      }
+
+      let ssgIdx = -1;
+      let allncoIdx = -1;
+      let startRow = 0;
+
+      for (let i = 0; i < Math.min(lines.length, 10); i++) {
+        const cols = lines[i].split(",").map(c => c.trim().replace(/^["']|["']$/g, ''));
+        const sIdx = cols.findIndex(c => c.includes("상품ID") || c.includes("SSG상품ID") || c.includes("ITEM_ID"));
+        const aIdx = cols.findIndex(c => c.includes("제휴상품ID") || c.includes("제휴사상품ID") || c.includes("ALLNCO_ITEM_ID"));
+        if (sIdx !== -1 && aIdx !== -1) {
+          ssgIdx = sIdx;
+          allncoIdx = aIdx;
+          startRow = i + 1;
+          break;
+        }
+      }
+
+      if (ssgIdx === -1 || allncoIdx === -1) {
+        return 0;
+      }
+
+      for (let i = startRow; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        const cols = line.split(",").map(c => c.trim().replace(/^="?|"$/g, '').replace(/["']/g, ''));
+        const ssgId = cols[ssgIdx];
+        const allncoId = cols[allncoIdx];
+
+        if (ssgId && allncoId && allncoId !== "null" && allncoId !== "-" && allncoId !== "") {
+          if (detectedChnlId) {
+            LOCAL_ALLNCO_MAP[`${detectedChnlId}_${ssgId}`] = allncoId;
+          }
+          LOCAL_ALLNCO_MAP[ssgId] = allncoId;
+          added++;
+        }
+      }
+
+      return added;
+    }
+
+    // 내장된 최신 제휴상품번호 캐시 (브라우저 CORS 제한 시 자동 fallback)
+    const BUILTIN_ALLNCO_MAP = {"0000015781_0000006399509": "8003649545", "0000015781_0000002413702": "8003649570", "0000015781_0000002416468": "8003649576", "0000015781_0000002423922": "8003649579", "0000015781_0000002423938": "8003649581", "0000015781_0000005252501": "8003649527", "0000015781_0000005435416": "8003648478", "0000015781_0000002423951": "8003649584", "0000015781_0000002423967": "8003649586", "0000015781_0000003573157": "8003649589", "0000015781_0000005659286": "8003648475", "0000015781_1000554118805": "8003644745", "0000015781_1000755095101": "8003650264", "0000015781_3000815009884": "8003622436", "0000015781_0000005989876": "8003648472", "0000015781_0000005697050": "8003648473", "0000015781_0000005881914": "8003648474", "0000015781_0000005953719": "8003648479", "0000015781_0000005958650": "8003648476", "0000015781_1000318361683": "8003644767", "0000015781_1000321074830": "8003650271", "0000015781_1000050420175": "8003650267", "0000015781_1000556670755": "8003650268", "0000015781_0000003890396": "8003648480", "0000015781_0000004392867": "8003648481", "0000015781_0000002028480": "8003648513", "0000015781_0000000748616": "8003648514", "0000015781_0000004878211": "8003648502", "0000015781_0000001497449": "8003648515", "0000015781_0000004596719": "8003649518", "0000015781_0000004596720": "8003649519", "0000015781_0000004690116": "8003649520", "0000015781_0000005231374": "8003649521", "0000015781_0000005231376": "8003649522", "0000015781_0000005244889": "8003649523", "0000015781_0000005244896": "8003649524", "0000015781_0000005249212": "8003649526", "0000015781_0000005254812": "8003649528", "0000015781_0000005254819": "8003649529", "0000015781_0000005275579": "8003649530", "0000015781_0000005359202": "8003649531", "0000015781_0000005359206": "8003649532", "0000015781_0000005493071": "8003649533", "0000015781_0000005494144": "8003649534", "0000015781_0000005495242": "8003649535", "0000015781_0000005526863": "8003649536", "0000015781_0000005532655": "8003649537", "0000015781_0000005537775": "8003649538", "0000015781_0000005585816": "8003649539", "0000015781_0000005620774": "8003649540", "0000015781_0000005742177": "8003649541", "0000015781_0000005873542": "8003649542", "0000015781_0000005961304": "8003649543", "0000015781_0000006387097": "8003649544", "0000015781_0000003565827": "8003649588", "0000015781_0000003716224": "8003649590", "0000015781_0000003939938": "8003649591", "0000015781_0000004022776": "8003649592", "0000015781_0000004100116": "8003649593", "0000015781_0000004119721": "8003649594", "0000015781_0000004193282": "8003649595", "0000015781_0000004257781": "8003649596", "0000015781_0000004258815": "8003649597", "0000015781_0000004272848": "8003649598", "0000015781_0000004441655": "8003649599", "0000015781_1000045594191": "8003650265", "0000015781_1000607424793": "8003650266", "0000015781_1000412281316": "8003650269", "0000015781_1000056258722": "8003650270", "0000015781_0000000003821": "8003648477", "0000015781_1000533639265": "8003632155", "0000015782_1000781005910": "8003651267", "0000015782_1000533948920": "8003632107", "0000015782_3000815015269": "8003646157", "0000015782_3000815015270": "8003646156", "0000015782_1000685629252": "8003644254", "0000015782_1000337541288": "8003651229", "0000015782_1000403192265": "8003651232", "0000015782_1000041670415": "8003651244", "0000015782_1000646290333": "8003651286", "0000015782_3000815016062": "8003646158", "0000015782_1000557406154": "8003651279", "0000015782_1000613452596": "8003651262", "0000015782_0000000035993": "8003618168", "0000015782_1000034023952": "8003651269", "0000015782_0000000004137": "8003618166", "0000015782_1000004703473": "8003651220", "0000015782_1000156357919": "8003651249", "0000015782_1000013667740": "8003651239", "0000015782_1000026540540": "8003651240", "0000015782_1000574117759": "8003651282", "0000015782_1000417013311": "8003651233", "0000015782_1000488929276": "8003651236", "0000015782_1000069816056": "8003651248", "0000015782_3000815009445": "8003622431", "0000015782_1000042113999": "8003651245", "0000015782_1000574109423": "8003651281", "0000015782_1000647751967": "8003651287", "0000015782_1000557830528": "8003651255", "0000015782_0000002878741": "1102936455", "0000015782_1000035180892": "8003651270", "0000015782_1000034540648": "8003651243", "0000015782_1000719453538": "8003651225", "0000015782_0000000004923": "8003637790", "0000015782_1000648711931": "8003644742", "0000015782_1000574246992": "8003635658", "0000015782_1000641867743": "8003635659", "0000015782_1000704331419": "8003651289", "0000017105_1000596136204": "8003650262", "0000017105_1000179154163": "8003650263", "0000017105_1000037035342": "8003632181", "0000017105_1000771524809": "8003650660", "0000017105_1000771524729": "8003650659", "0000017105_1000037023636": "8003632156", "0000017105_1000037074453": "8003632210", "0000017105_1000037074458": "8003632211", "0000017105_1000830919843": "8003639408", "0000017105_1000786787213": "8003639409", "0000017105_1000037074465": "8003632212", "0000018380_1000059598766": "8003622460", "0000018380_1000059596528": "8003622440", "0000018380_2097002127543": "8003622469", "0000018380_1000577833952": "8003623509", "0000018380_2097002053149": "8003622466", "0000018380_2097001953051": "8003622467", "0000018380_1000587418885": "8003622447", "0000018380_2097001988053": "8003622468", "0000018380_1000208372798": "8003622462", "0000018380_1000042393832": "8003623508", "0000018820_1000434448843": "8003644249", "0000018820_1000010947370": "8003638460", "0000023802_1000053811071": "8003618251", "0000023802_1000037317125": "8003618204", "0000023802_1000018960031": "8003558964", "0000023802_1000036027870": "8003618181", "0000023802_1000025794288": "8003618243", "0000023802_1000053060506": "8003618220", "0000023802_1000036027915": "8003618193", "0000023802_1000037378687": "8003618175", "0000023802_1000052683330": "8003618183", "0000023802_1000036057005": "8003618174", "0000023802_1000052742553": "8003618212", "0000023802_1000049915899": "8003618562", "0000023802_0000008645944": "8003581949", "0000023802_1000053392978": "8003618250", "0000023802_0000008630791": "8003567921", "0000023802_1000052954345": "8003618239", "0000023802_1000053297981": "8003618247", "0000023802_1000036854952": "8003618199", "0000023802_1000053938255": "8003618228", "0000023802_1000035982812": "8003581964", "0000023802_1000026680932": "8003618252", "0000023802_1000053938254": "8003618225", "0000023802_1000053008368": "8003618238", "0000023802_1000036854953": "8003618177", "0000023802_1000026548899": "8003618223", "0000023802_1000036057003": "8003618208", "0000023802_1000026152830": "8003618233", "0000023802_1000053242433": "8003618231", "0000023802_1000035982813": "8003581965", "0000023802_1000027275496": "8003618234", "0000023802_1000053392956": "8003618222", "0000023802_0000008634542": "8003581941", "0000023802_1000053060569": "8003618184", "0000023802_1000035982814": "8003618182", "0000023802_1000053060582": "8003618241", "0000023802_1000027037769": "8003618255", "0000023802_1000025833197": "8003618245", "0000023802_1000053060570": "8003618240", "0000023802_1000555538924": "8003558965", "0000023802_1000053189307": "8003618229", "0000023802_1000036235304": "8003618209", "0000023802_0000008645044": "8003581946", "0000023802_0000008631380": "8003567922", "0000023802_0000008789776": "8003581952", "0000023802_1000053060507": "8003618246", "0000023802_1000027873375": "8003618259", "0000023802_1000027146639": "8003618221", "0000023802_1000053392863": "8003618249", "0000023802_1000036176050": "8003618172", "0000023802_1000027664269": "8003618258", "0000023802_0000008641479": "8003581944", "0000023802_1000027322273": "8003618254", "0000023802_1000036713059": "8003618176", "0000023802_1000027932669": "8003618256", "0000023802_0000008641480": "8003581945", "0000023802_1000037317141": "8003618185", "0000023802_1000052252284": "8003618201", "0000023802_1000053060578": "8003618554", "0000023802_1000036176071": "8003618194", "0000023802_1000018904419": "8003558963", "0000023802_1000038122545": "8003618207", "0000023802_1000037346609": "8003618186", "0000023802_1000026667267": "8003618226", "0000023802_0000008645045": "8003581947", "0000023802_1000027275401": "8003618253", "0000023802_0000008634474": "8003581936", "0000023802_1000038199849": "8003618196", "0000023802_1000053060498": "8003618237", "0000023802_0000008645868": "8003581948", "0000023802_1000052683342": "8003618171", "0000023802_1000053060512": "8003618224", "0000023802_0000008797815": "8003581953", "0000023802_0000008634156": "8003581930", "0000023802_1000053297983": "8003618248", "0000023802_1000052576288": "8003618202", "0000023802_0000008634155": "8003581929", "0000023802_0000008634217": "8003581933", "0000023802_1000053189306": "8003618236", "0000023802_1000053242382": "8003618230", "0000023802_0000008848383": "8003581956", "0000023802_1000036987960": "8003618173", "0000023802_1000027664262": "8003618257", "0000023802_0000008848380": "8003581955", "0000023802_0000008632217": "8003567927", "0000023802_1000026962345": "8003618227", "0000023802_1000036235309": "8003618195", "0000023802_1000037285619": "8003618203", "0000023802_1000052493910": "8003618180", "0000023802_1000038463878": "8003618211", "0000023802_1000053242383": "8003618242", "0000023802_0000008834350": "8003581954", "0000023802_1000427111694": "8003618560", "0000023802_1000644305025": "8003581972", "0000023802_1000610925171": "8003618556", "0000023802_1000037498919": "8003618206", "0000023802_1000037571862": "8003618189", "0000023802_1000026059815": "8003618219", "0000023802_0000008634773": "8003581942", "0000023802_1000037346611": "8003618188", "0000023802_1000037346612": "8003618190", "0000015778_0000005435416": "F200120651", "0000015778_3000815007729": "F200119076", "0000015778_3000815009884": "F200119075", "0000015779_1000533948920": "F200119177", "0000015779_1000004703473": "F200120720", "0000015779_1000017351839": "F200119105", "0000015779_3000815009892": "F200119077", "0000015779_3000815009445": "F200120707", "0000015779_1000628052122": "F200119161", "0000015779_1000648711931": "F200120066", "0000015779_1000641867743": "F200119187", "0000015779_1000574246992": "F200119188", "0000017106_1000724268955": "F200120691", "0000017106_1000596136204": "F200120681", "0000017106_1000179154163": "F200120678", "0000017106_1000718865580": "F200120692", "0000017106_1000825376582": "F200120693", "0000017106_1000717981276": "F200120690", "0000017106_1000037035342": "F200120698", "0000017106_1000771524729": "F200120696", "0000017106_1000771524809": "F200120697", "0000017106_1000786787213": "F200120680", "0000019623_3000815015269": "1000000869", "0000019623_1000648711931": "1000000868", "0000019624_3000815009092": "1000001032", "0000019624_3000815009093": "1000001033", "0000015959_1000554118805": "2164387852", "0000015959_3000815009093": "2164388559", "0000015959_3000815007729": "2164381785", "0000015959_3000815009884": "2164388561", "0000015960_3000815009445": "2164381787", "0000015960_0000000035993": "2164380370", "0000015960_1000004703473": "2164390761", "0000015960_1000011190999": "2164380369", "0000015960_1000012643111": "2164380310", "0000015960_1000012464720": "2164381788", "0000015960_1000628052122": "2164381858", "0000015960_3000815009892": "2164381786", "0000015960_1000648711931": "2164387850", "0000015960_1000533948920": "2164381954", "0000017104_1000596136204": "2164390715", "0000017104_1000548621951": "2164390714", "0000017104_1000037035342": "2164390747", "0000017104_1000786787213": "2164390717", "0000020717_1000010947370": "2164389241", "0000020717_1000434448843": "2164389242", "0000016083_1000602991077": "2006318820", "0000016083_1000604084176": "2006532202", "0000016083_3000815009445": "2006491773", "0000016083_1000648711931": "2005866305", "0000018200_2097002176701": "2006294192", "0000019090_1000011363730": "303358632", "0000019091_1000857722512": "303358639", "0000019091_1000858183992": "303358638", "0000019091_1000850655839": "303358637", "0000019091_1000854867250": "303358636", "0000019091_3000815009093": "303358635", "0000020540_1000362288148": "776629739", "0000020540_1000011190999": "776631235", "0000020540_1000028011986": "780743590", "0000020540_1000628052122": "782462758", "0000020540_1000648711931": "782462920", "0000021954_1000040555743": "1557", "0000021954_1000011363730": "1564", "0000017106_1000830919843": "F200120675", "0000015782_1000027927249": "8003651241", "0000015782_1000032002240": "8003651242", "0000015782_1000052024553": "8003651246", "0000015782_1000064798565": "8003651271", "0000015782_1000160776631": "8003651250", "0000015782_1000333094186": "1101378670", "0000015782_1000527331945": "8003651251", "0000015782_1000527496916": "8003651278", "0000015782_1000556066855": "3099704638", "0000015782_1000558337871": "8003651280", "0000015782_1000560523608": "8003651257", "0000015782_1000577795145": "8003651258", "0000015782_1000595039822": "8003651259", "0000015782_1000597439129": "8003651290", "0000015782_1000610825167": "8003651261", "0000015782_1000622007270": "8003651283", "0000015782_1000622010141": "8003651284", "0000015782_1000271553436": "8003651266", "0000015782_1000337562285": "8003651272", "0000015782_1000337610311": "8003651273", "0000015782_1000438465718": "8003651235", "0000015782_1000489186829": "8003651275", "0000015782_1000493743815": "8003651276", "0000015782_1000517687797": "8003651277", "0000015782_1000643615826": "8003651285", "0000015782_1000266062917": "8003651226", "0000015782_1000290337473": "8003651227", "0000015782_1000312722468": "8003651228", "0000015782_1000438397164": "8003651234", "0000015782_1000684792929": "8003651238", "0000015782_1000518753192": "8000001594", "0000015782_1000557851772": "3128422258", "0000015781_3000815009093": "8003622438", "0000019091_1000645848644": "1233547002", "0000015779_1000026540540": "F200120723", "0000015779_1000027927249": "F200120724", "0000015779_1000034540648": "F200120725", "0000019091_1000734490404": "1309042002", "0000019091_1000689448520": "1252687004", "0000019091_1000761075285": "1312995001", "0000019091_1000774632458": "1319360005", "0000019091_1000707627639": "1292615001", "0000019091_1000762880471": "1313628004", "0000019091_1000840159729": "1344208001", "0000019623_1000004703473": "1000001078", "0000019623_1000069816056": "1000001087", "0000019623_1000493743815": "1000001061", "0000019623_1000641867743": "1000001062", "0000019623_1000704331419": "1000001090", "0000019623_1000781005910": "1000001064", "0000019623_1000034023952": "49818630", "0000019623_1000035180892": "49836649", "0000019623_1000628052122": "1000001066", "0000019623_1000647751967": "1000001077", "0000019623_1000557406154": "1000001092", "0000019623_1000613452596": "1000001097", "0000019623_1000013667740": "1000001091", "0000019623_1000041670415": "1000001093", "0000019623_1000488929276": "1000001094", "0000019623_1000417013311": "1000001095", "0000019623_0000000004137": "1000001096", "0000019623_1000337541288": "1000001098", "0000019623_1000719453538": "1000001099", "0000019623_1000026540540": "1000001100", "0000015960_2164390772": "2164390772", "2164390772": "2164390772", "0000015960_2164390773": "2164390773", "2164390773": "2164390773", "0000015960_제휴상품ID": "제휴상품ID", "제휴상품ID": "제휴상품ID", "0000015960_2164390774": "2164390774", "2164390774": "2164390774", "0000015960_2164387850": "2164387850", "2164387850": "2164387850", "0000015959_제휴상품ID": "제휴상품ID", "0000017104_제휴상품ID": "제휴상품ID", "0000019091_제휴상품ID": "제휴상품ID", "0000019091_303358630": "303358630", "303358630": "303358630", "0000019091_303358635": "303358635", "303358635": "303358635", "0000019091_1233547002": "1233547002", "1233547002": "1233547002", "0000019091_1309042002": "1309042002", "1309042002": "1309042002", "0000019091_1252687004": "1252687004", "1252687004": "1252687004", "0000019091_1312995001": "1312995001", "1312995001": "1312995001", "0000019091_1319360005": "1319360005", "1319360005": "1319360005", "0000019091_1292615001": "1292615001", "1292615001": "1292615001", "0000019091_1313628004": "1313628004", "1313628004": "1313628004", "0000019091_1344208001": "1344208001", "1344208001": "1344208001", "0000019623_1000001059": "1000001059", "1000001059": "1000001059", "0000019623_1000001060": "1000001060", "1000001060": "1000001060", "0000019623_1000001061": "1000001061", "1000001061": "1000001061", "0000019623_1000001062": "1000001062", "1000001062": "1000001062", "0000019623_1000001063": "1000001063", "1000001063": "1000001063", "0000019623_제휴상품ID": "제휴상품ID", "0000019623_1000001064": "1000001064", "1000001064": "1000001064", "0000019623_49818630": "49818630", "49818630": "49818630", "0000019623_49836649": "49836649", "49836649": "49836649", "0000019623_1000000868": "1000000868", "1000000868": "1000000868", "0000019623_1000001066": "1000001066", "1000001066": "1000001066", "0000019623_1000001075": "1000001075", "1000001075": "1000001075", "0000019623_1000000869": "1000000869", "1000000869": "1000000869", "0000019623_1000001076": "1000001076", "1000001076": "1000001076", "0000019623_1000001077": "1000001077", "1000001077": "1000001077", "0000019623_1000001078": "1000001078", "1000001078": "1000001078", "0000019623_1000001079": "1000001079", "1000001079": "1000001079", "0000019623_1000001087": "1000001087", "1000001087": "1000001087", "0000019623_1000001088": "1000001088", "1000001088": "1000001088", "0000019623_1000001089": "1000001089", "1000001089": "1000001089", "0000019623_1000001090": "1000001090", "1000001090": "1000001090", "0000019623_1000001091": "1000001091", "1000001091": "1000001091", "0000019623_1000001092": "1000001092", "1000001092": "1000001092", "0000019623_1000001093": "1000001093", "1000001093": "1000001093", "0000019623_1000001094": "1000001094", "1000001094": "1000001094", "0000019623_1000001095": "1000001095", "1000001095": "1000001095", "0000019623_1000001096": "1000001096", "1000001096": "1000001096", "0000019623_1000001097": "1000001097", "1000001097": "1000001097", "0000019623_1000001098": "1000001098", "1000001098": "1000001098", "0000019623_1000001099": "1000001099", "1000001099": "1000001099", "0000019623_1000001100": "1000001100", "1000001100": "1000001100", "0000015779_F200120723": "F200120723", "F200120723": "F200120723", "0000015779_F200120724": "F200120724", "F200120724": "F200120724", "0000015779_F200120725": "F200120725", "F200120725": "F200120725", "0000015779_제휴상품ID": "제휴상품ID", "F200120675": "F200120675", "F200120680": "F200120680", "F200120681": "F200120681", "F200120690": "F200120690", "F200120691": "F200120691", "0000015782_8003651226": "8003651226", "8003651226": "8003651226", "0000015782_8003651222": "8003651222", "8003651222": "8003651222", "0000015782_8003651227": "8003651227", "8003651227": "8003651227", "0000015782_8003651228": "8003651228", "8003651228": "8003651228", "0000015782_8003651229": "8003651229", "8003651229": "8003651229", "0000015782_8003651230": "8003651230", "8003651230": "8003651230", "0000015782_8003651231": "8003651231", "8003651231": "8003651231", "0000015782_8003651232": "8003651232", "8003651232": "8003651232", "0000015782_8003651233": "8003651233", "8003651233": "8003651233", "0000015782_8003651234": "8003651234", "8003651234": "8003651234", "0000015782_8003651235": "8003651235", "8003651235": "8003651235", "0000015782_8003651236": "8003651236", "8003651236": "8003651236", "0000015782_8003651237": "8003651237", "8003651237": "8003651237", "0000015782_8003651223": "8003651223", "8003651223": "8003651223", "0000015782_8000001594": "8000001594", "8000001594": "8000001594", "0000015782_3133204279": "3133204279", "3133204279": "3133204279", "0000015782_8003651238": "8003651238", "8003651238": "8003651238", "0000015782_8003651224": "8003651224", "8003651224": "8003651224", "0000015782_8003651225": "8003651225", "8003651225": "8003651225", "0000015782_제휴상품ID": "제휴상품ID", "0000015782_8003651239": "8003651239", "8003651239": "8003651239", "0000015782_8003651240": "8003651240", "8003651240": "8003651240", "0000015782_8003651241": "8003651241", "8003651241": "8003651241", "0000015782_8003651242": "8003651242", "8003651242": "8003651242", "0000015782_8003651243": "8003651243", "8003651243": "8003651243", "0000015782_8003651244": "8003651244", "8003651244": "8003651244", "0000015782_8003651245": "8003651245", "8003651245": "8003651245", "0000015782_8003651246": "8003651246", "8003651246": "8003651246", "0000015782_8003651247": "8003651247", "8003651247": "8003651247", "0000015782_8003651248": "8003651248", "8003651248": "8003651248", "0000015782_8003651249": "8003651249", "8003651249": "8003651249", "0000015782_8003651250": "8003651250", "8003651250": "8003651250", "0000015782_1101378659": "1101378659", "1101378659": "1101378659", "0000015782_8003651251": "8003651251", "8003651251": "8003651251", "0000015782_8003651252": "8003651252", "8003651252": "8003651252", "0000015782_8003651253": "8003651253", "8003651253": "8003651253", "0000015782_8003651254": "8003651254", "8003651254": "8003651254", "0000015782_8003651255": "8003651255", "8003651255": "8003651255", "0000015782_8003651256": "8003651256", "8003651256": "8003651256", "0000015782_8003651257": "8003651257", "8003651257": "8003651257", "0000015782_8003651258": "8003651258", "8003651258": "8003651258", "0000015782_8003651259": "8003651259", "8003651259": "8003651259", "0000015782_8003651260": "8003651260", "8003651260": "8003651260", "0000015782_8003651261": "8003651261", "8003651261": "8003651261", "0000015782_8003651262": "8003651262", "8003651262": "8003651262", "0000015782_8003651263": "8003651263", "8003651263": "8003651263", "0000015782_8003651264": "8003651264", "8003651264": "8003651264", "0000015782_8003651268": "8003651268", "8003651268": "8003651268", "0000015782_8003651269": "8003651269", "8003651269": "8003651269", "0000015782_8003651270": "8003651270", "8003651270": "8003651270", "0000015782_8003651271": "8003651271", "8003651271": "8003651271", "0000015782_8003651266": "8003651266", "8003651266": "8003651266", "0000015782_1101378670": "1101378670", "1101378670": "1101378670", "0000015782_8003651272": "8003651272", "8003651272": "8003651272", "0000015782_8003651273": "8003651273", "8003651273": "8003651273", "0000015782_8003651274": "8003651274", "8003651274": "8003651274", "0000015782_8003651275": "8003651275", "8003651275": "8003651275", "0000015782_8003651276": "8003651276", "8003651276": "8003651276", "0000015782_8003651277": "8003651277", "8003651277": "8003651277", "0000015782_8003651278": "8003651278", "8003651278": "8003651278", "0000015782_3099704638": "3099704638", "3099704638": "3099704638", "0000015782_8003651279": "8003651279", "8003651279": "8003651279", "0000015782_8003651280": "8003651280", "8003651280": "8003651280", "0000015782_8003651281": "8003651281", "8003651281": "8003651281", "0000015782_8003651282": "8003651282", "8003651282": "8003651282", "0000015782_8003651283": "8003651283", "8003651283": "8003651283", "0000015782_8003651284": "8003651284", "8003651284": "8003651284", "0000015782_8003651285": "8003651285", "8003651285": "8003651285", "0000015782_8003651286": "8003651286", "8003651286": "8003651286", "0000015782_8003651267": "8003651267", "8003651267": "8003651267", "0000015782_3128422258": "3128422258", "3128422258": "3128422258", "0000015782_8003651290": "8003651290", "8003651290": "8003651290", "0000015782_8003651289": "8003651289", "8003651289": "8003651289", "0000015781_8003622438": "8003622438", "8003622438": "8003622438", "0000015781_제휴상품ID": "제휴상품ID", "8003639408": "8003639408", "8003639409": "8003639409", "8003650659": "8003650659", "8003650660": "8003650660"};
+
+    // BO 제휴상품번호 조회 함수 (1. 로컬 프록시 /api/bo -> 2. BO 직접호출 -> 3. 내장 캐시 fallback)
+    async function fetchBoAllncoItems(chnlId, ssgNos) {
+      if (!ssgNos || ssgNos.length === 0) return {};
+      const uniqueIds = Array.from(new Set(ssgNos));
+      const mapping = {};
+
+      // 1순위: 브라우저 로컬 캐시 및 내장 캐시에서 기본값 먼저 매핑
+      uniqueIds.forEach(id => {
+        const cached = resolveAllncoNo(chnlId, id, id);
+        if (cached && cached !== "-") {
+          mapping[id] = cached;
+        }
+      });
+
+      // 2순위: 로컬 프록시(/api/bo) 호출 시도
+      try {
+        const proxyUrl = '/api/bo';
+        const params = new URLSearchParams({
+          chnlId: chnlId,
+          itemIds: uniqueIds.join(',')
+        });
+        const resp = await fetch(proxyUrl + "?" + params.toString(), { method: 'GET' });
+        if (resp.ok) {
+          const liveData = await resp.json();
+          Object.assign(mapping, liveData);
+          return mapping;
+        }
+      } catch (e) {
+        // 프록시 미동작 시 fallback 유지
+      }
+
+      // 3순위: BO 직접 호출 (동일 오리진 또는 CORS 허용 환경)
+      try {
+        const url = 'https://qa-bo.ssgadm.com/cp/alln/allnItem/getAllncoItemLnkgMngList.ssg';
+        const params = new URLSearchParams({
+          userFlag: 'SUPER',
+          quickSearchType: '1',
+          search_item_id_txt: uniqueIds.join(','),
+          searchItemIds: uniqueIds.join(','),
+          searchItemRegDivCd: '',
+          searchItemRegDtlCd: '',
+          searchChnlId: chnlId,
+          searchAllnAplYn: 'Y',
+          page: '1',
+          pageSize: '100'
+        });
+
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'is_dhx_griddata_req': 'true',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: params.toString(),
+          credentials: 'include'
+        });
+
+        if (resp.ok) {
+          const data = await resp.json();
+          const rows = data.gridRows || [];
+          rows.forEach(r => {
+            const cells = r.gridCells || [];
+            if (cells.length > 22) {
+              const ssgId = cells[8]?.value;
+              const allncoId = cells[22]?.value || '-';
+              const lnkgId = cells[41]?.value;
+              if (ssgId && allncoId !== '-') mapping[ssgId] = allncoId;
+              if (lnkgId && allncoId !== '-') mapping[lnkgId] = allncoId;
+            }
+          });
+        }
+      } catch (err) {
+        // 브라우저 CORS 차단 시 내장 캐시 매핑값 유지
+      }
+
+      return mapping;
+    }
+
+    const SHPP_MAIN_MAP = {
+      "11": "매장집하(11)",
+      "12": "PP입고(12)",
+      "13": "센터입고(13)",
+      "14": "백화점식품(14)",
+      "15": "백화점점포PP(15)",
+      "21": "점포PP(21)",
+      "31": "자사창고(31)",
+      "32": "업체창고(32)",
+      "41": "협력업체(41)",
+      "42": "직배(42)"
+    };
+
+    // BO 배송상품관리 등록 기준 센터입고브랜드(13) 및 직배(42) 대상 상품 목록
+    const CENTER_BRAND_ITEMS = new Set([
+      "0000000014144", "1000026540540", "1000027927249", "1000034540648", 
+      "1000042113999", "1000060204379", "1000271553436", "1000333094186", 
+      "1000403192265", "1000488929276", "1000548047649", "1000557851772", 
+      "1000597439129", "1000606991339", "1000701929811", "1000704331419", 
+      "1000711093764", "1000718882426", "1000719453538", "1000720349679", 
+      "1000724630525", "1000743900325", "1000794663341", "1000815491281", 
+      "1000822859456", "1000843037249"
+    ]);
+
+    const DIRECT_BRAND_ITEMS = new Set([
+      "1000028667288", "1000028669319", "1000051590153", "1000055719005",
+      "1000073780423", "1000112533090", "1000156357919", "1000260708810",
+      "1000290337473", "1000337541288", "1000360878432", "1000526022355",
+      "1000526113142", "1000527445173", "1000527802340", "1000542200384",
+      "1000542335315", "1000548368572", "1000559007077", "1000577795145",
+      "1000622355479", "1000627037666", "1000630121991", "1000641541549",
+      "1000647750950", "1000650518912", "1000684768193", "1000696086914",
+      "1000710876639", "1000711336054", "1000713576066", "1000721649218",
+      "1000721660017", "1000724283310", "1000725955611", "1000738530360",
+      "1000738958573", "1000738961027", "1000738975764", "1000738977973",
+      "1000753730382", "1000754145996", "1000763044658", "1000770512534",
+      "1000770781791", "1000784159966", "1000786374451", "1000787714943",
+      "1000789204580", "1000789207380", "1000789207477", "1000789216242",
+      "1000791388731", "1000795799009", "1000800016001", "1000806435155",
+      "1000807238528", "1000808419856", "1000812794089", "1000819036224",
+      "1000826852302", "1000834128180", "1000852189299", "1000852189610",
+      "1000852220153", "1000852256449", "1000854755497", "1000857275038"
+    ]);
+
+    // 채널명 및 영업점/사이트번호/상품번호 기반 배송주체 자동 판별 (지능형 Fallback)
+    function getShppMainDisplay(channelName, storeInfo, ssgNo) {
+      const ch = channelName || "";
+      const st = storeInfo || "";
+      const no = ssgNo || "";
+
+      // 1. 점포택배 및 장보기 채널 -> 점포PP(21)
+      if (ch.includes("점포택배") || ch.includes("장보기")) {
+        return "점포PP(21)";
+      }
+
+      // 2. 백화점 개별 등록 상품 배송주체 (센터입고브랜드 13 / 직배 42)
+      if (CENTER_BRAND_ITEMS.has(no)) {
+        return "센터입고(13)";
+      }
+      if (DIRECT_BRAND_ITEMS.has(no)) {
+        return "직배(42)";
+      }
+
+      // 3. 백화점 점포 중 PP입고 운영 점포 (김해점 1017 등)
+      if (st.includes("김해점") || st.includes("1017")) {
+        return "PP입고(12)";
+      }
+
+      // 4. 신세계백화점 일반 점포 매장 출고 -> 매장집하(11)
+      if (ch.includes("신세계백화점") || ch.includes("백화점")) {
+        return "매장집하(11)";
+      }
+
+      // 3. 프리미엄아울렛 -> 협력업체(41)
+      if (ch.includes("아울렛")) {
+        return "협력업체(41)";
+      }
+
+      // 4. 신세계몰 (직매입: 센터(13) / 온라인: 협력업체(41))
+      if (ch.includes("신세계몰")) {
+        if (ch.includes("직매입")) return "센터(13)";
+        return "협력업체(41)";
+      }
+
+      // 5. 물류센터 / 새벽배송 등 센터 출고 -> 센터(13)
+      if (ch.includes("직매입") || ch.includes("새벽배송")) {
+        return "센터(13)";
+      }
+
+      // 6. 이마트몰 점포/사이트
+      if (ch.includes("이마트몰")) {
+        if (st.includes("2551") || st.includes("NE.O")) return "센터(13)";
+        return "점포PP(21)";
+      }
+
+      // 7. 영업점/사이트번호 기준 보조 판별
+      if (st.includes("점(") || /10[0-3][0-9]/.test(st)) return "매장집하(11)";
+      if (st.includes("6004") || st.includes("7008")) return "협력업체(41)";
+      if (st.includes("2551")) return "센터(13)";
+
+      return "매장집하(11)";
+    }
+
+    // BO 배송정보관리 API(listItemShippForPaging.ssg) 호출하여 배송주체(shppMainCd) 맵핑
+    async function fetchBoShppMainItems(ssgNos) {
+      if (!ssgNos || ssgNos.length === 0) return {};
+      const uniqueIds = Array.from(new Set(ssgNos));
+      const mapping = {};
+
+      // 1순위: 로컬 프록시(/api/shpp) 호출 시도
+      try {
+        const proxyUrl = '/api/shpp';
+        const params = new URLSearchParams({ itemIds: uniqueIds.join(',') });
+        const resp = await fetch(proxyUrl + "?" + params.toString(), { method: 'GET' });
+        if (resp.ok) {
+          const liveData = await resp.json();
+          return liveData;
+        }
+      } catch (e) {}
+
+      // 2순위: BO 직접 호출 (동일 오리진 또는 CORS 허용 환경)
+      try {
+        const url = 'https://qa-bo.ssgadm.com/cp/itemoper/itemShippMng/listItemShippForPaging.ssg';
+        const params = new URLSearchParams({
+          formVersion: '20170725',
+          searchDtType: '1',
+          search_start_dt_disp: '2025-01-01',
+          searchStartDt: '20250101',
+          search_end_dt_disp: '2026-12-31',
+          searchEndDt: '20261231',
+          set_date: '3',
+          search_item_id_txt: uniqueIds.join(','),
+          searchItemIds: uniqueIds.join(','),
+          searchShppMainCd: '',
+          page: '1',
+          pageSize: '100'
+        });
+
+        const resp = await fetch(url + "?" + params.toString(), {
+          method: 'GET',
+          headers: {
+            'accept': 'application/xml, text/xml, */*; q=0.01',
+            'is_dhx_griddata_req': 'true',
+            'x-requested-with': 'XMLHttpRequest'
+          },
+          credentials: 'include'
+        });
+
+        if (resp.ok) {
+          const text = await resp.text();
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(text, "application/xml");
+
+          let itemIdIdx = null;
+          let shppMainIdx = null;
+          const cols = xmlDoc.querySelectorAll("head > column");
+          cols.forEach((col, idx) => {
+            const colId = (col.getAttribute("id") || "").toLowerCase();
+            const colTxt = (col.textContent || "").trim();
+            if (colId.includes("itemid") || colTxt.includes("상품번호")) itemIdIdx = idx;
+            if (colId.includes("shppmain") || colTxt.includes("배송주체")) shppMainIdx = idx;
+          });
+
+          const rows = xmlDoc.querySelectorAll("row");
+          rows.forEach(r => {
+            const rId = r.getAttribute("id") || "";
+            const cells = Array.from(r.querySelectorAll("cell")).map(c => (c.textContent || "").trim());
+            if (cells.length === 0) return;
+
+            let currId = "";
+            if (itemIdIdx !== null && itemIdIdx < cells.length) {
+              currId = cells[itemIdIdx];
+            } else if (rId && uniqueIds.includes(rId)) {
+              currId = rId;
+            } else {
+              for (const c of cells) {
+                if (uniqueIds.includes(c)) { currId = c; break; }
+              }
+            }
+
+            let currShpp = "";
+            if (shppMainIdx !== null && shppMainIdx < cells.length) {
+              currShpp = cells[shppMainIdx];
+            } else {
+              for (const c of cells) {
+                if (SHPP_MAIN_MAP[c]) { currShpp = c; break; }
+                for (const [code, desc] of Object.entries(SHPP_MAIN_MAP)) {
+                  if (c === code || (c.length > 2 && desc.includes(c))) {
+                    currShpp = code;
+                    break;
+                  }
+                }
+                if (currShpp) break;
+              }
+            }
+
+            if (currId) {
+              mapping[currId] = SHPP_MAIN_MAP[currShpp] || currShpp || "-";
+            }
+          });
+        }
+      } catch (err) {}
+
+      return mapping;
+    }
+
+    function showLoading(show, text = "조회 중...") {
+      const el = document.getElementById("loadingIndicator");
+      const txt = document.getElementById("loadingText");
+      if (show) {
+        txt.textContent = text;
+        el.classList.remove("hidden");
+        el.classList.add("flex");
+      } else {
+        el.classList.add("hidden");
+        el.classList.remove("flex");
+      }
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById("toast");
+      document.getElementById("toastMsg").textContent = msg;
+      toast.classList.remove("translate-y-16", "opacity-0");
+      setTimeout(() => {
+        toast.classList.add("translate-y-16", "opacity-0");
+      }, 2000);
+    }
+
+    // 조건 3: 특정 서비스명 조회 (해당 채널명 & 서비스명만 focus)
+    async function fetchSingleChannel(partner, channelName, chnlId) {
+      showLoading(true, `[${partner}] ${channelName} 연동 상품 조회 중...`);
+      highlightChannelCard(chnlId);
+      updateScopeBadge(`[${partner}] ${channelName} (${chnlId})`, 'channel');
+
+      try {
+        const json = await callApi(chnlId);
+        const items = json.data || [];
+        fetchedData = [];
+
+        if (items.length === 0) {
+          fetchedData.push({
+            partner,
+            channelName,
+            chnlId,
+            ssgNo: null,
+            allncoNo: "-",
+            shppMainCd: "-",
+            storeInfo: "-",
+            rawId: null,
+            modDts: "-"
+          });
+        } else {
+          // 1차 파싱 (배송주체 기본 판별 즉시 적용)
+          const tempRows = items.map(it => {
+            const { ssgNo, storeInfo } = parseLnkgItemId(it.lnkgItemId);
+            const defaultShpp = getShppMainDisplay(channelName, storeInfo, ssgNo);
+            return {
+              partner,
+              channelName,
+              chnlId,
+              ssgNo,
+              allncoNo: "-",
+              shppMainCd: defaultShpp,
+              storeInfo,
+              rawId: it.lnkgItemId,
+              modDts: it.modDts
+            };
+          });
+
+          // 2차: BO 제휴상품번호 및 배송주체 병렬 조회
+          showLoading(true, `[${channelName}] 제휴상품번호 & 배송주체 조회 중...`);
+          const ssgNos = tempRows.map(r => r.ssgNo);
+          const [boMap, shppMap] = await Promise.all([
+            fetchBoAllncoItems(chnlId, ssgNos),
+            fetchBoShppMainItems(ssgNos)
+          ]);
+          
+          tempRows.forEach(r => {
+            r.allncoNo = resolveAllncoNo(r.chnlId, r.ssgNo, r.rawId, boMap);
+            if (shppMap && shppMap[r.ssgNo] && shppMap[r.ssgNo] !== "-") {
+              r.shppMainCd = shppMap[r.ssgNo];
+            }
+          });
+
+          fetchedData = tempRows;
+        }
+
+        renderTable();
+        showToast(`[${partner} > ${channelName}] 조회 완료 (${items.length}건)`);
+      } catch (e) {
+        alert(`조회 실패 (${chnlId}): ${e.message}`);
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    // 조건 2: 채널명 선택 > 이 제휴사만 조회 선택시 (해당 채널명의 전체 상품번호만 focus)
+    async function fetchCurrentPartnerChannels() {
+      const partner = CHANNEL_DATA[currentPartnerIdx];
+      const channels = partner.channels;
+      showLoading(true, `[${partner.partner}] 전체 ${channels.length}개 서비스 연동 상품 조회 중...`);
+      highlightChannelCard('all');
+      updateScopeBadge(`[${partner.partner}] 전체 서비스 (${channels.length}개)`, 'partner');
+
+      const promises = channels.map(async ch => {
+        try {
+          const json = await callApi(ch.chnlId);
+          return { partner: partner.partner, channelName: ch.name, chnlId: ch.chnlId, items: json.data || [] };
+        } catch(e) {
+          return { partner: partner.partner, channelName: ch.name, chnlId: ch.chnlId, items: [], error: e.message };
+        }
+      });
+
+      const resList = await Promise.all(promises);
+      fetchedData = [];
+
+      // 1차 누적
+      const activeChannels = [];
+      resList.forEach(r => {
+        if (r.items.length === 0) {
+          fetchedData.push({
+            partner: r.partner,
+            channelName: r.channelName,
+            chnlId: r.chnlId,
+            ssgNo: null,
+            allncoNo: "-",
+            shppMainCd: "-",
+            storeInfo: "-",
+            rawId: null,
+            modDts: "-"
+          });
+        } else {
+          activeChannels.push(r);
+          r.items.forEach(it => {
+            const { ssgNo, storeInfo } = parseLnkgItemId(it.lnkgItemId);
+            const defaultShpp = getShppMainDisplay(r.channelName, storeInfo, ssgNo);
+            fetchedData.push({
+              partner: r.partner,
+              channelName: r.channelName,
+              chnlId: r.chnlId,
+              ssgNo,
+              allncoNo: "-",
+              shppMainCd: defaultShpp,
+              storeInfo,
+              rawId: it.lnkgItemId,
+              modDts: it.modDts
+            });
+          });
+        }
+      });
+
+      renderTable();
+
+      // 2차: 제휴상품번호 및 배송주체 병렬 조회
+      if (activeChannels.length > 0) {
+        showLoading(true, `[${partner.partner}] 제휴상품번호 & 배송주체 연동 조회 중...`);
+        const allSsgNos = [];
+        activeChannels.forEach(ach => {
+          ach.items.forEach(it => allSsgNos.push(parseLnkgItemId(it.lnkgItemId).ssgNo));
+        });
+
+        const [_, shppMap] = await Promise.all([
+          Promise.all(activeChannels.map(async ach => {
+            const ssgNos = ach.items.map(it => parseLnkgItemId(it.lnkgItemId).ssgNo);
+            const boMap = await fetchBoAllncoItems(ach.chnlId, ssgNos);
+            fetchedData.forEach(r => {
+              if (r.chnlId === ach.chnlId && r.ssgNo) {
+                r.allncoNo = resolveAllncoNo(r.chnlId, r.ssgNo, r.rawId, boMap);
+              }
+            });
+          })),
+          fetchBoShppMainItems(allSsgNos)
+        ]);
+
+        fetchedData.forEach(r => {
+          if (r.ssgNo && shppMap && shppMap[r.ssgNo] && shppMap[r.ssgNo] !== "-") {
+            r.shppMainCd = shppMap[r.ssgNo];
+          }
+        });
+        renderTable();
+      }
+
+      showLoading(false);
+      showToast(`[${partner.partner}] 전체 채널 조회 완료`);
+    }
+
+    // 조건 1: 전체채널일괄조회시 (전체 채널 & 상품번호 focus)
+    async function fetchAllChannels() {
+      const allTargets = [];
+      CHANNEL_DATA.forEach(p => {
+        p.channels.forEach(ch => {
+          allTargets.push({ partner: p.partner, channelName: ch.name, chnlId: ch.chnlId });
+        });
+      });
+
+      showLoading(true, `전체 27개 채널 연동 상품 일괄 조회 중...`);
+      updateScopeBadge(`전체 제휴사 모든 채널 (27개)`, 'all');
+      highlightChannelCard(null);
+
+      const btn = document.getElementById("btnFetchAll");
+      btn.disabled = true;
+      btn.classList.add("opacity-50");
+
+      try {
+        const promises = allTargets.map(async target => {
+          try {
+            const json = await callApi(target.chnlId);
+            return { ...target, items: json.data || [] };
+          } catch (e) {
+            return { ...target, items: [], error: e.message };
+          }
+        });
+
+        const resList = await Promise.all(promises);
+        fetchedData = [];
+        const activeChannels = [];
+
+        resList.forEach(r => {
+          if (r.items.length === 0) {
+            fetchedData.push({
+              partner: r.partner,
+              channelName: r.channelName,
+              chnlId: r.chnlId,
+              ssgNo: null,
+              allncoNo: "-",
+              shppMainCd: "-",
+              storeInfo: "-",
+              rawId: null,
+              modDts: "-"
+            });
+          } else {
+            activeChannels.push(r);
+            r.items.forEach(it => {
+              const { ssgNo, storeInfo } = parseLnkgItemId(it.lnkgItemId);
+              const defaultShpp = getShppMainDisplay(r.channelName, storeInfo, ssgNo);
+              fetchedData.push({
+                partner: r.partner,
+                channelName: r.channelName,
+                chnlId: r.chnlId,
+                ssgNo,
+                allncoNo: "-",
+                shppMainCd: defaultShpp,
+                storeInfo,
+                rawId: it.lnkgItemId,
+                modDts: it.modDts
+              });
+            });
+          }
+        });
+
+        renderTable();
+
+        // 2차: 제휴상품번호 및 배송주체 일괄 조회
+        if (activeChannels.length > 0) {
+          showLoading(true, `제휴상품번호 & 배송주체 일괄 연동 중 (${activeChannels.length}개 채널)...`);
+          const allSsgNos = [];
+          activeChannels.forEach(ach => {
+            ach.items.forEach(it => allSsgNos.push(parseLnkgItemId(it.lnkgItemId).ssgNo));
+          });
+
+          const [_, shppMap] = await Promise.all([
+            Promise.all(activeChannels.map(async ach => {
+              const ssgNos = ach.items.map(it => parseLnkgItemId(it.lnkgItemId).ssgNo);
+              const boMap = await fetchBoAllncoItems(ach.chnlId, ssgNos);
+              fetchedData.forEach(r => {
+                if (r.chnlId === ach.chnlId && r.ssgNo) {
+                  r.allncoNo = resolveAllncoNo(r.chnlId, r.ssgNo, r.rawId, boMap);
+                }
+              });
+            })),
+            fetchBoShppMainItems(allSsgNos)
+          ]);
+
+          fetchedData.forEach(r => {
+            if (r.ssgNo && shppMap && shppMap[r.ssgNo] && shppMap[r.ssgNo] !== "-") {
+              r.shppMainCd = shppMap[r.ssgNo];
+            }
+          });
+          renderTable();
+        }
+
+        showToast(`전체 27개 채널 일괄 조회 완료!`);
+      } catch (err) {
+        alert("일괄 조회 중 오류가 발생했습니다: " + err.message);
+      } finally {
+        showLoading(false);
+        btn.disabled = false;
+        btn.classList.remove("opacity-50");
+      }
+    }
+
+    function fetchCustomChannel() {
+      const input = document.getElementById("customChnlId");
+      const id = input.value.trim();
+      if (!id) {
+        alert("채널 ID를 입력하세요.");
+        return;
+      }
+      let partnerName = "직접입력";
+      let chnlName = "직접입력 채널";
+      for (const p of CHANNEL_DATA) {
+        const found = p.channels.find(c => c.chnlId === id);
+        if (found) {
+          partnerName = p.partner;
+          chnlName = found.name;
+          break;
+        }
+      }
+      fetchSingleChannel(partnerName, chnlName, id);
+    }
+
+
+    // 배송주체별 컬러셋 정의 (리스트 식별성 극대화)
+    function getShppBadgeInfo(shpp) {
+      if (!shpp || shpp === "-") {
+        return {
+          bg: "bg-slate-50 text-slate-400 border-slate-200",
+          dot: "bg-slate-300"
+        };
+      }
+      if (shpp.includes("11") || shpp.includes("매장집하")) {
+        // 11 매장집하: 주황 / 앰버 톤 (오프라인 백화점 매장)
+        return {
+          bg: "bg-amber-50 text-amber-900 border-amber-300 ring-1 ring-amber-500/10",
+          dot: "bg-amber-500"
+        };
+      }
+      if (shpp.includes("12") || shpp.includes("PP입고")) {
+        // 12 PP입고: 퍼플 / 바이올렛 톤 (백화점 점포 PP센터)
+        return {
+          bg: "bg-purple-50 text-purple-900 border-purple-300 ring-1 ring-purple-500/10",
+          dot: "bg-purple-500"
+        };
+      }
+      if (shpp.includes("13") || shpp.includes("센터")) {
+        // 13 센터입고: 블루 / 스카이 톤 (물류센터 NE.O 입고)
+        return {
+          bg: "bg-blue-50 text-blue-900 border-blue-300 ring-1 ring-blue-500/10",
+          dot: "bg-blue-500"
+        };
+      }
+      if (shpp.includes("21") || shpp.includes("점포PP")) {
+        // 21 점포PP: 에메랄드 / 그린 톤 (이마트몰/트레이더스 점포배송)
+        return {
+          bg: "bg-emerald-50 text-emerald-900 border-emerald-300 ring-1 ring-emerald-500/10",
+          dot: "bg-emerald-500"
+        };
+      }
+      if (shpp.includes("41") || shpp.includes("협력업체")) {
+        // 41 협력업체: 슬레이트 / 그레이 톤 (외부 협력사 택배직송)
+        return {
+          bg: "bg-slate-100 text-slate-800 border-slate-300 ring-1 ring-slate-400/10",
+          dot: "bg-slate-500"
+        };
+      }
+      if (shpp.includes("42") || shpp.includes("직배")) {
+        // 42 직배: 로즈 / 핑크 톤 (브랜드 직접 배송)
+        return {
+          bg: "bg-rose-50 text-rose-900 border-rose-300 ring-1 ring-rose-500/10",
+          dot: "bg-rose-500"
+        };
+      }
+      if (shpp.includes("14") || shpp.includes("15")) {
+        // 14 백화점식품, 15 백화점점포PP: 틸 / 청록 톤
+        return {
+          bg: "bg-teal-50 text-teal-900 border-teal-300 ring-1 ring-teal-500/10",
+          dot: "bg-teal-500"
+        };
+      }
+      return {
+        bg: "bg-gray-50 text-gray-800 border-gray-200",
+        dot: "bg-gray-400"
+      };
+    }
+
+    function renderShppBadge(shpp) {
+      const info = getShppBadgeInfo(shpp);
+      return `<span class="inline-flex items-center gap-1.5 font-mono text-xs font-semibold px-2.5 py-1 rounded-md border ${info.bg} shadow-sm"><span class="w-1.5 h-1.5 rounded-full ${info.dot}"></span><span>${shpp}</span></span>`;
+    }
+
+    function quickFilterShpp(val) {
+      const input = document.getElementById("tableFilter");
+      input.value = val;
+      filterResultsTable();
+    }
+
+
+    // 테이블 정렬 상태 및 정렬 함수
+    let currentSortCol = 'modDts';
+    let currentSortDir = 'desc';
+
+    function handleSort(col) {
+      if (currentSortCol === col) {
+        currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        currentSortCol = col;
+        currentSortDir = (col === 'modDts') ? 'desc' : 'asc';
+      }
+      renderTable();
+    }
+
+    function updateSortIcons() {
+      const cols = ['partner', 'channelName', 'ssgNo', 'allncoNo', 'shppMainCd', 'storeInfo', 'modDts'];
+      cols.forEach(col => {
+        const el = document.getElementById(`sort-icon-${col}`);
+        if (!el) return;
+        if (currentSortCol === col) {
+          el.className = currentSortDir === 'asc' 
+            ? "fa-solid fa-arrow-up-long text-blue-600 text-xs" 
+            : "fa-solid fa-arrow-down-long text-blue-600 text-xs";
+        } else {
+          el.className = "fa-solid fa-sort text-slate-300 text-xs group-hover:text-slate-500";
+        }
+      });
+    }
+
+    function renderTable() {
+      const q = document.getElementById("tableFilter").value.trim().toLowerCase();
+      const hasItemsOnly = document.getElementById("filterHasItemsOnly").checked;
+      const tbody = document.getElementById("resultsTableBody");
+
+      const uniqueChannels = new Set(fetchedData.map(d => d.chnlId));
+      const validItems = fetchedData.filter(d => d.ssgNo !== null);
+      
+      document.getElementById("statChannelCount").textContent = `${uniqueChannels.size}개`;
+      document.getElementById("statItemCount").textContent = `${validItems.length}건`;
+
+      let filtered = fetchedData;
+      if (hasItemsOnly) {
+        filtered = filtered.filter(d => d.ssgNo !== null);
+      }
+      if (q) {
+        filtered = filtered.filter(d => 
+          (d.partner && d.partner.toLowerCase().includes(q)) ||
+          (d.channelName && d.channelName.toLowerCase().includes(q)) ||
+          (d.chnlId && d.chnlId.toLowerCase().includes(q)) ||
+          (d.ssgNo && d.ssgNo.toLowerCase().includes(q)) ||
+          (d.allncoNo && d.allncoNo.toLowerCase().includes(q)) ||
+          (d.shppMainCd && d.shppMainCd.toLowerCase().includes(q)) ||
+          (d.storeInfo && d.storeInfo.toLowerCase().includes(q)) ||
+          (d.modDts && d.modDts.toLowerCase().includes(q))
+        );
+      }
+
+      // 정렬 처리
+      if (currentSortCol) {
+        filtered.sort((a, b) => {
+          if (a.ssgNo === null && b.ssgNo !== null) return 1;
+          if (a.ssgNo !== null && b.ssgNo === null) return -1;
+
+          let valA = a[currentSortCol];
+          let valB = b[currentSortCol];
+
+          if (valA === null || valA === undefined || valA === '-') valA = '';
+          if (valB === null || valB === undefined || valB === '-') valB = '';
+
+          if (!valA && !valB) return 0;
+          if (!valA) return 1;
+          if (!valB) return -1;
+
+          let cmp = 0;
+          if (currentSortCol === 'ssgNo' || currentSortCol === 'allncoNo') {
+            const numA = Number(valA);
+            const numB = Number(valB);
+            if (!isNaN(numA) && !isNaN(numB)) {
+              cmp = numA - numB;
+            } else {
+              cmp = String(valA).localeCompare(String(valB));
+            }
+          } else {
+            cmp = String(valA).localeCompare(String(valB), 'ko');
+          }
+
+          return currentSortDir === 'asc' ? cmp : -cmp;
+        });
+      }
+
+      updateSortIcons();
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" class="px-4 py-12 text-center text-slate-400">
+              조회된 데이터가 없거나 필터 조건에 맞는 항목이 없습니다.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(row => {
+        const hasItem = row.ssgNo !== null;
+        const hasAllnco = hasItem && row.allncoNo && row.allncoNo !== "-";
+        const hasShpp = hasItem && row.shppMainCd && row.shppMainCd !== "-";
+        return `
+          <tr class="hover:bg-slate-50/80 transition-colors ${!hasItem ? 'bg-slate-50/40 text-slate-400' : ''}">
+            <td class="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">${row.partner}</td>
+            <td class="px-4 py-3 text-slate-700 whitespace-nowrap">${row.channelName}</td>
+            <td class="px-4 py-3 whitespace-nowrap">
+              ${hasItem ? `<span class="font-mono font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">${row.ssgNo}</span>` : '<span class="text-xs text-slate-400 italic">연동 상품 없음 (0건)</span>'}
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap">
+              ${hasAllnco ? `<span class="font-mono font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">${row.allncoNo}</span>` : `<span class="font-mono text-xs text-slate-400">-</span>`}
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap">
+              ${hasShpp ? renderShppBadge(row.shppMainCd) : `<span class="text-xs text-slate-400 font-mono">-</span>`}
+            </td>
+            <td class="px-4 py-3 font-medium text-xs text-slate-600 whitespace-nowrap">${hasItem ? row.storeInfo : '-'}</td>
+            <td class="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">${row.modDts}</td>
+            <td class="px-3 py-3 text-center whitespace-nowrap">
+              ${hasItem ? `
+                <div class="inline-flex items-center justify-center gap-1">
+                  <button onclick="copySingle('${row.ssgNo}', 'SSG상품번호')" title="SSG상품번호 복사" class="p-1 px-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition-colors">
+                    <i class="fa-regular fa-copy"></i>
+                  </button>
+                  ${hasAllnco ? `
+                    <button onclick="copySingle('${row.allncoNo}', '제휴상품번호')" title="제휴상품번호 복사" class="p-1 px-1.5 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded transition-colors">
+                      <i class="fa-solid fa-link text-[10px]"></i>
+                    </button>
+                  ` : ''}
+                </div>
+              ` : '-'}
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function filterResultsTable() {
+      renderTable();
+    }
+
+    function copySingle(val, label = "값") {
+      navigator.clipboard.writeText(val).then(() => {
+        showToast(`${label} [${val}] 복사 완료`);
+      });
+    }
+
+    function copyIds(type = 'ssg', delimiter = 'newline') {
+      const validRows = fetchedData.filter(d => d.ssgNo !== null);
+      if (validRows.length === 0) {
+        alert("복사할 데이터가 없습니다.");
+        return;
+      }
+
+      let targetList = [];
+      let label = "";
+
+      if (type === 'allnco') {
+        targetList = validRows
+          .map(d => d.allncoNo)
+          .filter(v => v && v !== "-");
+        label = "제휴상품번호";
+      } else {
+        targetList = validRows.map(d => d.ssgNo);
+        label = "SSG상품번호";
+      }
+
+      if (targetList.length === 0) {
+        alert(`복사할 ${label}가 없습니다.`);
+        return;
+      }
+
+      const uniqueIds = Array.from(new Set(targetList));
+      const sep = delimiter === 'newline' ? '\n' : ', ';
+      const text = uniqueIds.join(sep);
+
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(`${uniqueIds.length}개 ${label} 복사 완료!`);
+      });
+    }
+
+    function exportCSV() {
+      const validRows = fetchedData.filter(d => d.ssgNo !== null);
+      if (validRows.length === 0) {
+        alert("내보낼 상품 데이터가 없습니다.");
+        return;
+      }
+
+      // 지정 양식 헤더: 채널명,서비스명,채널ID,SSG상품번호,제휴상품번호,배송주체,영업점번호,마지막연동일자
+      let csv = "\uFEFF채널명,서비스명,채널ID,SSG상품번호,제휴상품번호,배송주체,영업점번호,마지막연동일자\n";
+      validRows.forEach(r => {
+        const chnlIdCell = r.chnlId.startsWith('0') ? `=\"${r.chnlId}\"` : r.chnlId;
+        const ssgNoCell = r.ssgNo.startsWith('0') ? `=\"${r.ssgNo}\"` : r.ssgNo;
+        const allncoNo = r.allncoNo || "-";
+        const allncoCell = allncoNo.startsWith('0') ? `=\"${allncoNo}\"` : allncoNo;
+        const shppCell = r.shppMainCd || "-";
+        csv += `"${r.partner}","${r.channelName}",${chnlIdCell},${ssgNoCell},${allncoCell},"${shppCell}","${r.storeInfo}","${r.modDts}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      a.href = url;
+      a.download = `QA_제휴연동상품_${dateStr}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // 드래그 앤 드롭 전역 이벤트 리스너
+    function initDragAndDrop() {
+      const overlay = document.getElementById("dragDropOverlay");
+      let dragCounter = 0;
+
+      window.addEventListener("dragenter", (e) => {
+        e.preventDefault();
+        dragCounter++;
+        if (overlay) {
+          overlay.classList.remove("hidden");
+          overlay.classList.add("flex");
+        }
+      });
+
+      window.addEventListener("dragover", (e) => {
+        e.preventDefault();
+      });
+
+      window.addEventListener("dragleave", (e) => {
+        e.preventDefault();
+        dragCounter--;
+        if (dragCounter <= 0 && overlay) {
+          dragCounter = 0;
+          overlay.classList.add("hidden");
+          overlay.classList.remove("flex");
+        }
+      });
+
+      window.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dragCounter = 0;
+        if (overlay) {
+          overlay.classList.add("hidden");
+          overlay.classList.remove("flex");
+        }
+
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          handleCsvFiles(e.dataTransfer.files);
+        }
+      });
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      loadLocalAllncoMap();
+      initTabs();
+      initDragAndDrop();
+    });
+  </script>
+</body>
+</html>

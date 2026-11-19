@@ -2,6 +2,7 @@
 *.xlsx
 ~$*.xlsx
 *.csv
+sync.log
 
 # OS 생성 파일 제외
 .DS_Store
